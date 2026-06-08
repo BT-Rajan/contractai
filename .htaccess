@@ -1,0 +1,34 @@
+Options -Indexes
+
+<FilesMatch "\.(env|log|sql|sh)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block dotfiles
+    RewriteRule (^|/)\.(?!well-known) - [F,L]
+
+    # Block backend directories
+    RewriteRule ^(core|logs|storage)(\/|$) - [F,L]
+
+    # Allow /api/, /uploads/, /assets/ to pass through directly
+    RewriteRule ^api/ - [L]
+    RewriteRule ^uploads/ - [L]
+    RewriteRule ^assets/ - [L]
+
+    # Everything else → SPA
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+<IfModule mod_php.c>
+    php_flag  display_errors Off
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+    php_value max_execution_time 120
+    php_value memory_limit 256M
+</IfModule>
