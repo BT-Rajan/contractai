@@ -288,12 +288,24 @@ function action_upload_logo(array $user): void {
 function save_upload(array $file, string $dir, array $allowedTypes = ['image/jpeg','image/png','image/webp'], int $maxBytes = 2097152): ?string {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return null;
     if ($file['size'] > $maxBytes) return null;
+
+    // Detect true MIME from file content, never trust client-supplied type
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime  = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
     if (!in_array($mime, $allowedTypes, true)) return null;
-    $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $name = bin2hex(random_bytes(16)) . '.' . $ext;
+
+    // Map MIME to expected extension and enforce it — prevents .php disguised as .jpg
+    $mimeExtMap = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+        'image/gif'  => 'gif',
+    ];
+    $safeExt = $mimeExtMap[$mime] ?? null;
+    if (!$safeExt) return null;  // unknown MIME with no safe extension
+
+    $name = bin2hex(random_bytes(16)) . '.' . $safeExt;
     $dest = rtrim($dir, '/') . '/' . $name;
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     if (!move_uploaded_file($file['tmp_name'], $dest)) return null;

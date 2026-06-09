@@ -41,6 +41,17 @@ function db_count(string $sql, array $p = []): int {
     return (int)db_val($sql, $p);
 }
 
+/**
+ * Paginate a query. Returns [rows, total_count].
+ * Wraps the caller's SQL in a COUNT subquery and adds LIMIT/OFFSET.
+ */
+function db_paginate(string $sql, array $params, int $page, int $perPage): array {
+    $offset = ($page - 1) * $perPage;
+    $total  = (int)db_val("SELECT COUNT(*) FROM ({$sql}) AS _pag", $params);
+    $rows   = db_rows("{$sql} LIMIT {$perPage} OFFSET {$offset}", $params);
+    return [$rows, $total];
+}
+
 function db_transaction(callable $fn): mixed {
     db()->beginTransaction();
     try {

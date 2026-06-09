@@ -239,7 +239,10 @@ function auth_me(): void {
 // ── SETUP — creates admin account, use once then remove ───────
 // GET /api/auth.php?action=setup
 function auth_setup(): void {
-    if (!APP_DEBUG) json_err('Not available in production', 403);
+    // Double guard: block in production env AND when debug is off
+    if (APP_ENV === 'production' || !APP_DEBUG) {
+        json_err('Not available', 403);
+    }
 
     $email    = 'admin@cogzidel.com';
     $password = 'admin123';

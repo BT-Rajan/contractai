@@ -5,6 +5,14 @@ Options -Indexes
     Deny from all
 </FilesMatch>
 
+# Prevent PHP execution in uploads directory
+<IfModule mod_php.c>
+<FilesMatch "^uploads/.*\.(php[0-9]?|phtml|pl|py|sh|cgi)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
@@ -13,6 +21,9 @@ Options -Indexes
 
     # Block backend directories
     RewriteRule ^(core|logs|storage)(\/|$) - [F,L]
+
+    # Block PHP execution in uploads (belt-and-suspenders)
+    RewriteRule ^uploads/.*\.(php[0-9]?|phtml|pl|py|sh|cgi)$ - [F,L]
 
     # Allow /api/, /uploads/, /assets/ to pass through directly
     RewriteRule ^api/ - [L]

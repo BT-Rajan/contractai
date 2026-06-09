@@ -29,6 +29,11 @@ define('JWT_SECRET',  $_ENV['JWT_SECRET']  ?? 'contractai_jwt_secret_key_2024_de
 define('JWT_TTL',     (int)($_ENV['JWT_TTL']     ?? 3600));
 define('JWT_REFRESH', (int)($_ENV['JWT_REFRESH'] ?? 604800));
 
+// Warn if JWT secret is still the insecure default
+if (JWT_SECRET === 'contractai_jwt_secret_key_2024_dev' && APP_DEBUG) {
+    error_log('[ContractAI] WARNING: JWT_SECRET is using the insecure default. Set a strong secret in .env');
+}
+
 define('GEMINI_API_KEY', $_ENV['GEMINI_API_KEY'] ?? '');
 define('GEMINI_MODEL',   $_ENV['GEMINI_MODEL']   ?? 'gemini-2.0-flash');
 

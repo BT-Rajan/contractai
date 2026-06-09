@@ -773,14 +773,18 @@ Pages.contractWizard = async function() {
     body.innerHTML = '<div class="form-row" style="flex-wrap:wrap">' +
       entries.map(([k, def]) => {
         const type = typeof def === 'string' ? def : (def.type || 'text');
-        const opts = typeof def === 'object' ? (def.options || []) : [];
+        const opts = (typeof def === 'object' && Array.isArray(def.options)) ? def.options : [];
         const lbl  = k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-        const wide = ['textarea','text'].includes(type);
+        // Only textarea is full-width; all other types split into two columns
+        const wide = type === 'textarea';
         const w    = wide ? '100%' : 'calc(50% - 7px)';
         let inp = '';
-        if (type==='select' && opts.length) {
+        if (type === 'select' && opts.length) {
           inp = `<select name="ans_${k}" class="form-control"><option value="">— Select —</option>${opts.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
-        } else if (type==='textarea') {
+        } else if (type === 'select') {
+          // select declared but no options — fall back to text input
+          inp = `<input type="text" name="ans_${k}" class="form-control">`;
+        } else if (type === 'textarea') {
           inp = `<textarea name="ans_${k}" class="form-control" rows="3"></textarea>`;
         } else {
           const htmlType = {number:'number',date:'date',email:'email',url:'url'}[type] || 'text';

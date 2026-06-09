@@ -17,10 +17,14 @@ foreach ([LOGS_PATH, STORAGE_PATH, UPLOADS_PATH] as $dir) {
 // CORS headers for local dev
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (APP_ENV === 'development') {
-    header('Access-Control-Allow-Origin: ' . ($origin ?: '*'));
+    // Only reflect localhost origins — never send * with credentials
+    $allowedOriginPattern = '/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/';
+    $safeOrigin = ($origin && preg_match($allowedOriginPattern, $origin)) ? $origin : 'null';
+    header('Access-Control-Allow-Origin: ' . $safeOrigin);
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    header('Vary: Origin');
 }
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     ob_end_clean();

@@ -71,10 +71,10 @@ function cp_create(array $user): void {
         "INSERT INTO counterparties
          (tenant_id, company_name, company_name_ar,
           reg_number_enc, tax_number_enc,
-          address, address_ar,
-          signatory_name_enc, signatory_title, signatory_title_ar,
+          address,
+          signatory_name_enc, signatory_title,
           email, phone, country, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         [
             $user['tenant_id'],
             trim($b['company_name']),
@@ -82,10 +82,8 @@ function cp_create(array $user): void {
             enc($b['reg_number']      ?? null),
             enc($b['tax_number']      ?? null),
             trim($b['address']        ?? '') ?: null,
-            trim($b['address_ar']     ?? '') ?: null,
             enc($b['signatory_name']  ?? null),
             trim($b['signatory_title']    ?? '') ?: null,
-            trim($b['signatory_title_ar'] ?? '') ?: null,
             trim($b['email']          ?? '') ?: null,
             trim($b['phone']          ?? '') ?: null,
             trim($b['country']        ?? 'AE'),
@@ -113,8 +111,8 @@ function cp_update(array $user, int $id): void {
         "UPDATE counterparties SET
          company_name = ?, company_name_ar = ?,
          reg_number_enc = ?, tax_number_enc = ?,
-         address = ?, address_ar = ?,
-         signatory_name_enc = ?, signatory_title = ?, signatory_title_ar = ?,
+         address = ?,
+         signatory_name_enc = ?, signatory_title = ?,
          email = ?, phone = ?, country = ?
          WHERE id = ? AND tenant_id = ?",
         [
@@ -123,10 +121,8 @@ function cp_update(array $user, int $id): void {
             enc($b['reg_number']      ?? null),
             enc($b['tax_number']      ?? null),
             trim($b['address']        ?? '') ?: null,
-            trim($b['address_ar']     ?? '') ?: null,
             enc($b['signatory_name']  ?? null),
             trim($b['signatory_title']    ?? '') ?: null,
-            trim($b['signatory_title_ar'] ?? '') ?: null,
             trim($b['email']          ?? '') ?: null,
             trim($b['phone']          ?? '') ?: null,
             trim($b['country']        ?? 'AE'),

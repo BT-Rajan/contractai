@@ -214,15 +214,10 @@ function contract_delete(array $user, int $id): void {
 function contract_pdf(array $user, int $id): void {
     if (!$id) api_error('Contract ID required', 422);
     $row  = tenant_guard(db_row("SELECT * FROM contracts WHERE id = ?", [$id]));
-    $lang = in_array($_GET['lang'] ?? 'en', ['en','ar']) ? $_GET['lang'] : 'en';
+    $lang = in_array($_GET['lang'] ?? 'en', ['en','ar'], true) ? $_GET['lang'] : 'en';
     $html = $row['edited_html'] ?: $row['generated_html'];
 
-    // Serve cached PDF
-    $cached = $lang === 'ar' ? $row['pdf_ar'] : $row['pdf_en'];
-    if ($cached) {
-        $full = STORAGE_PATH . '/pdfs/' . $id . '/' . $cached;
-        if (file_exists($full)) { pdf_stream($full, $row['title']); }
-    }
+    if (!$html) api_error('Contract has no content to export', 422);
 
     // Generate fresh PDF
     if (!class_exists('\\Mpdf\\Mpdf')) {
@@ -231,9 +226,6 @@ function contract_pdf(array $user, int $id): void {
 
     $path = pdf_build($id, $html, $lang, $row['title']);
     if (!$path) api_error('PDF generation failed', 500);
-
-    $col = ($lang === 'ar') ? 'pdf_ar' : 'pdf_en';
-    db_run("UPDATE contracts SET {$col} = ? WHERE id = ?", [basename($path), $id]);
 
     pdf_stream($path, $row['title']);
 }
@@ -275,11 +267,21 @@ function pdf_build(int $id, string $html, string $lang, string $title): ?string 
 }
 
 function pdf_stream(string $path, string $title): never {
-    $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $title) . '.pdf';
+    // Validate path is within expected storage directory to prevent path traversal
+    $realPath = realpath($path);
+    $realStorage = realpath(STORAGE_PATH);
+    if (!$realPath || !$realStorage || !str_starts_with($realPath, $realStorage)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+    // Safe ASCII filename: strip non-safe chars, limit length to avoid header overflow
+    $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $title);
+    $name = substr($name, 0, 100) . '.pdf';
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $name . '"');
-    header('Content-Length: ' . filesize($path));
-    readfile($path);
+    header('Content-Length: ' . filesize($realPath));
+    header('X-Content-Type-Options: nosniff');
+    readfile($realPath);
     exit;
 }
 

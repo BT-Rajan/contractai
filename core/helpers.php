@@ -170,6 +170,13 @@ function validate(array $data, array $rules): array {
                 case 'in':
                     if ($v !== '' && !in_array($v, explode(',', (string)$param), true)) $errors[$field][] = "{$label} is invalid";
                     break;
+                case 'numeric':
+                    if ($v !== '' && !is_numeric($v)) $errors[$field][] = "{$label} must be a number";
+                    break;
+                case 'confirmed':
+                    $confirm = (string)($data[$field . '_confirmation'] ?? '');
+                    if ($v !== $confirm) $errors[$field][] = "{$label} confirmation does not match";
+                    break;
             }
         }
     }
@@ -234,19 +241,25 @@ if (!defined('RATE_AI')) {
 
 /**
  * Light sanitiser for AI-generated HTML contract output.
- * Strips <script>, <style>, <iframe>, event handlers and
- * javascript: hrefs while keeping all structural/semantic tags.
+ * Strips <script>, <style>, <iframe>, event handlers,
+ * javascript:/data: URIs, and SVG-based XSS vectors while
+ * keeping all structural/semantic contract tags.
  */
 function sanitize_html(string $html): string {
     if ($html === '') return '';
     // Remove dangerous tags entirely (with content)
     $html = preg_replace('#<(script|style|iframe|object|embed|form)[^>]*>.*?</\1>#is', '', $html);
-    // Remove standalone dangerous tags
-    $html = preg_replace('#<(script|style|iframe|object|embed|form|input|button)[^>]*/?\>#i', '', $html);
-    // Strip on* event attributes
-    $html = preg_replace('/\s+on\w+\s*=\s*(["\'])[^"\']*\1/i', '', $html);
-    // Strip javascript: hrefs
-    $html = preg_replace('/href\s*=\s*(["\'])\s*javascript:[^"\']*\1/i', '', $html);
+    // Remove standalone dangerous/script-capable tags
+    $html = preg_replace('#<(script|style|iframe|object|embed|form|input|button|meta|link|base)[^>]*/?>#i', '', $html);
+    // Strip on* event attributes (onclick, onload, onerror, etc.)
+    $html = preg_replace('/\s+on\w+\s*=\s*(["\'`])[^"\'`]*\1/i', '', $html);
+    // Strip javascript: and data: URIs in href/src/action/formaction
+    $html = preg_replace('/(href|src|action|formaction)\s*=\s*(["\'`])\s*(javascript|data|vbscript):[^"\'`]*\2/i', '', $html);
+    // Strip CSS expression() which can execute JS in old IE
+    $html = preg_replace('/expression\s*\([^)]*\)/i', '', $html);
+    // Remove SVG script-capable elements
+    $html = preg_replace('#<(foreignObject|use|animate)[^>]*>.*?</\1>#is', '', $html);
+    $html = preg_replace('#<(foreignObject|use|animate)[^>]*/?>#i', '', $html);
     return $html;
 }
 
