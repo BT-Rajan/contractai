@@ -140,6 +140,11 @@ const SVG = {
   menu:     '<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
   check:    '<polyline points="20 6 9 17 4 12"/>',
   lock:     '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  tag:      '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  list:     '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  globe:    '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  clock:    '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  save:     '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
 };
 
 function icon(name, size) {
@@ -181,28 +186,28 @@ Pages.login = function() {
     <div class="auth-page">
       <div class="auth-card">
         <div class="auth-logo">
-          <div class="brand-icon" style="width:44px;height:44px;font-size:22px">C</div>
+          <div class="brand-icon" style="width:40px;height:40px;font-size:18px">C</div>
           <div class="auth-logo-name">ContractAI</div>
         </div>
         <div class="auth-title">Welcome back</div>
         <div class="auth-sub">Sign in to your workspace</div>
-        <div id="login-err" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px;padding:10px 12px;background:#fef2f2;border-radius:8px;border:1px solid #fca5a5"></div>
+        <div id="login-err" style="display:none;font-size:13px;margin-bottom:16px;padding:11px 14px;background:#fef2f2;border-radius:10px;border:1.5px solid #fca5a5;color:#991b1b;font-weight:500"></div>
         <form id="login-form" autocomplete="on">
           <div class="form-group">
             <label for="l-email">Email Address</label>
             <input id="l-email" name="email" type="email" class="form-control" placeholder="you@company.com" required autofocus autocomplete="email">
           </div>
-          <div class="form-group">
+          <div class="form-group" style="margin-bottom:20px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-              <label for="l-pass" style="margin:0">Password</label>
-              <a href="#/forgot" style="font-size:12px">Forgot password?</a>
+              <label style="margin:0">Password</label>
+              <a href="#/forgot" style="font-size:12px;color:var(--slate);font-weight:500">Forgot password?</a>
             </div>
             <input id="l-pass" name="password" type="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
           </div>
-          <button type="submit" class="btn btn-primary w-100 btn-lg" style="margin-top:4px">Sign In</button>
+          <button type="submit" class="btn btn-primary w-100 btn-lg">Sign In</button>
         </form>
-        <div style="text-align:center;margin-top:20px;font-size:13px;color:var(--gray-600)">
-          No account? <a href="#/register">Start free trial</a>
+        <div style="text-align:center;margin-top:22px;font-size:13px;color:var(--slate)">
+          No account? <a href="#/register" style="color:var(--ink);font-weight:600">Start free trial →</a>
         </div>
       </div>
     </div>`;
@@ -223,9 +228,8 @@ Pages.login = function() {
       App.go('dashboard');
     } else {
       errEl.innerHTML = esc(d.message || 'Login failed');
-      // If not verified, try to show a re-verification hint
       if (d.message && d.message.includes('verify')) {
-        errEl.innerHTML += '<br><span style="font-size:12px">Check your email for the verification link, or re-register to get a new one.</span>';
+        errEl.innerHTML += '<br><span style="font-size:12px;font-weight:400">Check your email for the verification link, or re-register to get a new one.</span>';
       }
       errEl.style.display = 'block';
       btn.disabled = false; btn.textContent = 'Sign In';
@@ -233,17 +237,17 @@ Pages.login = function() {
   });
 };
 
-// ── REGISTER ──────────────────────────────────────────────────
+// ── REGISTERER ──────────────────────────────────────────────────
 Pages.register = function() {
   document.getElementById('app').innerHTML = `
     <div class="auth-page">
       <div class="auth-card" style="max-width:480px">
         <div class="auth-logo">
-          <div class="brand-icon" style="width:44px;height:44px;font-size:22px">C</div>
+          <div class="brand-icon" style="width:40px;height:40px;font-size:18px">C</div>
           <div class="auth-logo-name">ContractAI</div>
         </div>
         <div class="auth-title">Start free trial</div>
-        <div class="auth-sub">14 days free. No credit card required.</div>
+        <div class="auth-sub">14 days free · No credit card required</div>
         <form id="reg-form">
           <div class="form-row">
             <div class="form-group">
@@ -271,8 +275,8 @@ Pages.register = function() {
           </div>
           <button type="submit" class="btn btn-primary w-100 btn-lg" style="margin-top:8px">Create Account</button>
         </form>
-        <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--gray-600)">
-          Already have an account? <a href="#/login">Sign in</a>
+        <div style="text-align:center;margin-top:20px;font-size:13px;color:var(--slate)">
+          Already have an account? <a href="#/login" style="color:var(--ink);font-weight:600">Sign in →</a>
         </div>
       </div>
     </div>`;
@@ -293,7 +297,7 @@ Pages.register = function() {
           <div class="auth-card" style="text-align:center;max-width:480px">
             <div style="font-size:56px;margin-bottom:16px">✅</div>
             <div class="auth-title">Account Created!</div>
-            <p style="color:var(--gray-600);font-size:13px;margin:12px 0 16px">
+            <p style="color:var(--slate);font-size:13px;margin:12px 0 16px">
               Your workspace is ready. Please verify your email address before logging in.
             </p>
             ${verifyLink ? `
@@ -402,7 +406,7 @@ Pages.verified = function(params) {
       <div class="auth-card" style="text-align:center">
         <div style="font-size:56px;margin-bottom:16px">${ok ? '✅' : '❌'}</div>
         <div class="auth-title">${ok ? 'Email Verified!' : 'Link Invalid or Expired'}</div>
-        <p style="color:var(--gray-600);font-size:13px;margin:12px 0 20px">
+        <p style="color:var(--slate);font-size:13px;margin:12px 0 20px">
           ${ok ? 'Your account is active. You can now sign in.' : 'This verification link has expired or already been used.'}
         </p>
         <a href="#/login" class="btn btn-primary">Go to Login</a>
@@ -465,16 +469,27 @@ Pages.dashboard = async function() {
   const { stats, sub, recent } = d.data;
 
   setPage(`
+    <div class="page-header">
+      <div class="page-header-left">
+        <h2>Dashboard</h2>
+        <p>Overview of your workspace activity</p>
+      </div>
+      <button class="btn btn-gold" onclick="App.go('contracts/new')">${icon('zap',15)} Generate Contract</button>
+    </div>
+
     <div class="stats-grid">
       ${[
-        { v: stats.total_contracts,       l: 'Total Contracts',  i: 'file',   c: 'navy'  },
-        { v: stats.draft_contracts,       l: 'Drafts',           i: 'edit',   c: 'gold'  },
-        { v: stats.final_contracts,       l: 'Finalised',        i: 'check',  c: 'green' },
-        { v: stats.total_counterparties,  l: 'Counterparties',   i: 'users',  c: 'blue'  },
+        { v: stats.total_contracts,      l: 'Total Contracts',  i: 'file',   c: 'navy'  },
+        { v: stats.draft_contracts,      l: 'In Draft',         i: 'edit',   c: 'gold'  },
+        { v: stats.final_contracts,      l: 'Finalised',        i: 'check',  c: 'green' },
+        { v: stats.total_counterparties, l: 'Counterparties',   i: 'users',  c: 'blue'  },
       ].map(s => `
         <div class="stat-card">
-          <div class="stat-icon ${s.c}">${icon(s.i, 24)}</div>
-          <div><div class="stat-val">${s.v}</div><div class="stat-lbl">${s.l}</div></div>
+          <div class="stat-icon ${s.c}">${icon(s.i, 22)}</div>
+          <div>
+            <div class="stat-val">${s.v}</div>
+            <div class="stat-lbl">${s.l}</div>
+          </div>
         </div>`).join('')}
     </div>
 
@@ -482,7 +497,7 @@ Pages.dashboard = async function() {
       <div class="card" style="flex:1;min-width:280px">
         <div class="card-hd">
           Recent Contracts
-          <a href="#/contracts" style="font-size:12px;font-weight:400">View all →</a>
+          <a href="#/contracts" style="font-size:12px;font-weight:500;color:var(--slate)">View all →</a>
         </div>
         <div class="table-wrap">
           <table>
@@ -492,39 +507,41 @@ Pages.dashboard = async function() {
                 ? `<tr><td colspan="4"><div class="empty">
                     <div class="empty-icon">📄</div>
                     <h3>No contracts yet</h3>
-                    <p>Generate your first AI-drafted contract</p>
-                    <button class="btn btn-primary btn-sm" onclick="App.go('contracts/new')">Get Started</button>
+                    <p>Generate your first AI-drafted contract in seconds</p>
+                    <button class="btn btn-primary btn-sm" onclick="App.go('contracts/new')">${icon('zap',14)} Get Started</button>
                    </div></td></tr>`
                 : recent.map(c => `
                   <tr style="cursor:pointer" onclick="App.go('contract',{id:${c.id}})">
                     <td class="fw-600">${esc(c.title)}</td>
                     <td><span class="badge badge-${esc(c.status)}">${esc(c.status)}</span></td>
                     <td class="text-muted">${fmtDate(c.created_at)}</td>
-                    <td>${icon('eye', 15)}</td>
+                    <td>${icon('eye', 14)}</td>
                   </tr>`).join('')}
             </tbody>
           </table>
         </div>
       </div>
 
-      <div style="width:270px;min-width:230px">
-        <div class="card mb-3">
+      <div style="width:260px;min-width:230px;display:flex;flex-direction:column;gap:14px">
+        <div class="card">
           <div class="card-hd">Plan Usage</div>
           <div class="card-body">
             ${sub ? `
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-                <span class="fw-600">${esc(sub.plan_name)}</span>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <span style="font-weight:700;font-size:14px">${esc(sub.plan_name)}</span>
                 <span class="badge badge-${esc(sub.status)}">${esc(sub.status)}</span>
               </div>
-              <div style="margin-bottom:12px">
-                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-                  <span>Contracts</span><span>${sub.contracts_used} / ${sub.max_contracts}</span>
+              <div style="margin-bottom:13px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+                  <span style="color:var(--slate)">Contracts</span>
+                  <span style="font-weight:600">${sub.contracts_used} / ${sub.max_contracts}</span>
                 </div>
                 ${quotaBar(sub.contracts_used, sub.max_contracts)}
               </div>
               <div>
-                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-                  <span>AI Calls</span><span>${sub.ai_calls_used} / ${sub.max_ai_calls}</span>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+                  <span style="color:var(--slate)">AI Calls</span>
+                  <span style="font-weight:600">${sub.ai_calls_used} / ${sub.max_ai_calls}</span>
                 </div>
                 ${quotaBar(sub.ai_calls_used, sub.max_ai_calls)}
               </div>` : '<p class="text-muted" style="font-size:13px">No subscription found</p>'}
@@ -533,18 +550,18 @@ Pages.dashboard = async function() {
 
         <div class="card">
           <div class="card-hd">Quick Actions</div>
-          <div style="padding:6px 8px">
+          <div style="padding:8px">
             ${[
-              { l:'Generate Contract',   r:'contracts/new',   i:'zap'      },
-              { l:'New Template',        r:'templates',       i:'layout'   },
-              { l:'Add Counterparty',    r:'counterparties',  i:'users'    },
-              { l:'Invite Team Member',  r:'team',            i:'users'    },
+              { l:'Generate Contract',  r:'contracts/new',  i:'zap'    },
+              { l:'New Template',       r:'templates',      i:'layout' },
+              { l:'Add Counterparty',   r:'counterparties', i:'users'  },
+              { l:'Invite Team Member', r:'team',           i:'users'  },
             ].map(a => `
               <div onclick="App.go('${a.r}')"
-                style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:8px;cursor:pointer;font-size:13px"
-                onmouseover="this.style.background='var(--gray-50)'"
-                onmouseout="this.style.background=''">
-                ${icon(a.i, 16)} ${a.l}
+                style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:var(--ink-muted);transition:all .15s"
+                onmouseover="this.style.background='var(--surface)';this.style.color='var(--ink)'"
+                onmouseout="this.style.background='';this.style.color='var(--ink-muted)'">
+                <span style="color:var(--slate)">${icon(a.i, 15)}</span>${a.l}
               </div>`).join('')}
           </div>
         </div>
@@ -552,7 +569,7 @@ Pages.dashboard = async function() {
     </div>`);
 };
 
-// ── CONTRACTS LIST ────────────────────────────────────────────
+// ── CONTRACTS LISTST ────────────────────────────────────────────
 Pages.contracts = async function(params) {
   params = params || {};
   setTitle('Contracts'); showLoading();
@@ -674,7 +691,7 @@ Pages.contractWizard = async function() {
         </div>
         <div class="card" style="width:240px">
           <div class="card-hd">How it works</div>
-          <div class="card-body" style="font-size:13px;color:var(--gray-600);line-height:1.7">
+          <div class="card-body" style="font-size:13px;color:var(--slate);line-height:1.7">
             <p>Gemini AI drafts your contract using:</p>
             <ul style="padding-left:16px;margin-top:8px">
               <li>Template structure</li>
@@ -843,8 +860,8 @@ Pages.contractEditor = async function(params) {
   setPage(`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div style="font-size:13px">
-        <span onclick="App.go('contracts')" style="color:var(--gray-400);cursor:pointer">← Contracts</span>
-        <span style="color:var(--gray-200);margin:0 8px">/</span>
+        <span onclick="App.go('contracts')" style="color:var(--slate-l);cursor:pointer">← Contracts</span>
+        <span style="color:var(--slate-xl);margin:0 8px">/</span>
         <span>${esc(c.title)}</span>
         <span class="badge badge-${esc(c.status)}" style="margin-left:8px">${esc(c.status)}</span>
       </div>
@@ -857,10 +874,10 @@ Pages.contractEditor = async function(params) {
     </div>
 
     <input id="con-title" class="form-control" value="${esc(c.title)}"
-      style="font-size:18px;font-weight:700;border:none;border-bottom:2px solid var(--gray-200);border-radius:0;padding:6px 0;margin-bottom:10px"
+      style="font-size:18px;font-weight:700;border:none;border-bottom:2px solid var(--slate-xl);border-radius:0;padding:6px 0;margin-bottom:10px"
       ${isFin ? 'readonly' : ''}>
 
-    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--gray-400);margin-bottom:14px">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--slate-l);margin-bottom:14px">
       ${c.template_name    ? `<span>📋 ${esc(c.template_name)}</span>`    : ''}
       ${c.counterparty_name? `<span>🏢 ${esc(c.counterparty_name)}</span>`: ''}
       <span>🎯 ${esc(c.tone)}</span>
@@ -946,9 +963,12 @@ Pages.templates = async function() {
   const canEdit = me && (me.role === 'owner' || me.role === 'admin');
 
   setPage(`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <span style="color:var(--gray-600);font-size:13px">${rows.length} template${rows.length!==1?'s':''}</span>
-      ${canEdit ? `<button class="btn btn-primary" onclick="window._openTplForm()">${icon('plus',16)} New Template</button>` : ''}
+    <div class="page-header">
+      <div class="page-header-left">
+        <h2>Templates</h2>
+        <p>${rows.length} template${rows.length !== 1 ? 's' : ''} in your library</p>
+      </div>
+      ${canEdit ? `<button class="btn btn-primary" onclick="window._openTplForm()">${icon('plus',15)} New Template</button>` : ''}
     </div>
 
     ${!rows.length ? `
@@ -956,38 +976,42 @@ Pages.templates = async function() {
       <div class="empty">
         <div class="empty-icon">📋</div>
         <h3>No templates yet</h3>
-        <p>Create templates with questionnaire fields to speed up contract drafting</p>
-        ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="window._openTplForm()">Create First Template</button>` : ''}
+        <p>Create reusable templates with smart questionnaire fields to speed up contract drafting.</p>
+        ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="window._openTplForm()">${icon('plus',14)} Create First Template</button>` : ''}
       </div>
     </div>` : `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
-      ${rows.map(t => `
-        <div class="card">
-          <div class="card-body">
-            <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-              <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px">${esc(t.category)}</span>
-              <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px">${esc(t.language).toUpperCase()}</span>
+    <div class="tpl-grid">
+      ${rows.map(t => {
+        const fieldCount = t.questionnaire_schema ? Object.keys(t.questionnaire_schema).length : 0;
+        return `
+        <div class="tpl-card">
+          <div class="tpl-card-top">
+            <div class="tpl-card-cat">${icon('tag',11)} ${esc(t.category)}</div>
+            <div class="tpl-card-name">${esc(t.name)}</div>
+            ${t.name_ar ? `<div class="tpl-card-name-ar">${esc(t.name_ar)}</div>` : ''}
+            <div class="tpl-card-meta">
+              <span>${icon('list',11)} ${fieldCount} field${fieldCount !== 1 ? 's' : ''}</span>
+              <span>${icon('globe',11)} ${esc(t.language).toUpperCase()}</span>
+              <span>${icon('clock',11)} v${t.version}</span>
             </div>
-            <div class="fw-700" style="margin-bottom:4px">${esc(t.name)}</div>
-            ${t.name_ar ? `<div style="font-size:12px;color:var(--gray-600);direction:rtl;text-align:right">${esc(t.name_ar)}</div>` : ''}
-            <div class="text-muted" style="font-size:11px;margin-top:8px">v${t.version} · ${fmtDate(t.created_at)}</div>
           </div>
-          <div style="padding:10px 14px;border-top:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center">
-            <button class="btn btn-primary btn-sm" onclick="App.go('contracts/new')">Use Template</button>
+          <div class="tpl-card-foot">
+            <button class="btn btn-gold btn-sm" onclick="App.go('contracts/new')">${icon('zap',13)} Use</button>
             ${canEdit ? `<div style="display:flex;gap:4px">
-              <button class="btn btn-ghost btn-icon btn-sm" onclick="window._openTplForm(${t.id})" title="Edit">${icon('edit',14)}</button>
-              <button class="btn btn-danger btn-icon btn-sm" onclick="window._delTpl(${t.id},this)" title="Delete">${icon('trash',14)}</button>
+              <button class="btn btn-outline btn-sm" onclick="window._openTplForm(${t.id})">${icon('edit',13)} Edit</button>
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="window._delTpl(${t.id},this)" title="Delete">${icon('trash',13)}</button>
             </div>` : ''}
           </div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>`}`);
 
   window._delTpl = async function(id, btn) {
-    if (!confirm('Delete this template?')) return;
+    if (!confirm('Delete this template? This cannot be undone.')) return;
     btn.disabled = true;
     const d = await API.templates.delete(id);
-    if (d.success) { toast('Deleted','success'); Pages.templates(); }
-    else { toast(d.message,'error'); btn.disabled=false; }
+    if (d.success) { toast('Template deleted', 'success'); Pages.templates(); }
+    else { toast(d.message, 'error'); btn.disabled = false; }
   };
 
   window._openTplForm = async function(id) {
@@ -1002,15 +1026,25 @@ Pages.templates = async function() {
     const fields = Object.entries(schema);
 
     const modalBody = `
-      <div class="form-group">
-        <label>Name (English) *</label>
-        <input id="tf-name" class="form-control" value="${esc(tpl.name||'')}" required>
-      </div>
-      <div class="form-group">
-        <label>Name (Arabic)</label>
-        <input id="tf-name-ar" class="form-control" dir="rtl" value="${esc(tpl.name_ar||'')}">
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label>Name (English) *</label>
+          <input id="tf-name" class="form-control" value="${esc(tpl.name||'')}" placeholder="e.g. NDA Agreement" required>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Language</label>
+          <select id="tf-lang" class="form-control">
+            <option value="en" ${tpl.language==='en'?'selected':''}>English</option>
+            <option value="ar" ${tpl.language==='ar'?'selected':''}>Arabic</option>
+            <option value="bilingual" ${tpl.language==='bilingual'?'selected':''}>Bilingual</option>
+          </select>
+        </div>
       </div>
       <div class="form-row">
+        <div class="form-group">
+          <label>Name (Arabic)</label>
+          <input id="tf-name-ar" class="form-control rtl-input" dir="rtl" value="${esc(tpl.name_ar||'')}" placeholder="الاسم بالعربية">
+        </div>
         <div class="form-group">
           <label>Category *</label>
           <input id="tf-cat" list="tf-catlist" class="form-control" value="${esc(tpl.category||'General')}">
@@ -1020,43 +1054,35 @@ Pages.templates = async function() {
             <option>Lease</option><option>Partnership</option><option>Consultancy</option>
           </datalist>
         </div>
-        <div class="form-group">
-          <label>Language</label>
-          <select id="tf-lang" class="form-control">
-            <option value="en" ${tpl.language==='en'?'selected':''}>English</option>
-            <option value="ar" ${tpl.language==='ar'?'selected':''}>Arabic</option>
-            <option value="bilingual" ${tpl.language==='bilingual'?'selected':''}>Bilingual</option>
-          </select>
-        </div>
       </div>
       <div class="form-group">
-        <label>AI Instructions <span class="text-muted">(optional)</span></label>
-        <textarea id="tf-ai" class="form-control" rows="2" placeholder="e.g. Always use UAE law...">${esc(tpl.ai_prompt||'')}</textarea>
+        <label>AI Instructions <span class="text-muted fw-500" style="text-transform:none;letter-spacing:0">(optional)</span></label>
+        <textarea id="tf-ai" class="form-control" rows="2" placeholder="e.g. Always apply UAE law. Favour the first party.">${esc(tpl.ai_prompt||'')}</textarea>
       </div>
-      <div style="border:1px solid var(--gray-200);border-radius:8px;padding:12px;margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="margin:0;font-weight:600;font-size:13px">Questionnaire Fields</label>
-          <button type="button" class="btn btn-outline btn-sm" onclick="window._addTplField()">+ Add Field</button>
+      <div style="border:1.5px solid var(--slate-xl);border-radius:10px;padding:14px;margin-bottom:16px;background:var(--surface)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-weight:700;font-size:13px;color:var(--ink)">Questionnaire Fields</div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="window._addTplField()">${icon('plus',13)} Add Field</button>
         </div>
         <div id="tf-fields">
           ${fields.map(([k,def]) => {
             const type = typeof def==='string' ? def : (def.type||'text');
-            return `<div class="field-row" style="display:flex;gap:6px;margin-bottom:6px">
-              <input class="form-control tf-fkey" style="font-family:monospace;max-width:140px" value="${esc(k)}">
-              <select class="form-control tf-ftype" style="max-width:110px">
+            return `<div class="field-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+              <input class="form-control tf-fkey" style="font-family:monospace;font-size:12px;max-width:150px" value="${esc(k)}" placeholder="field_key">
+              <select class="form-control tf-ftype" style="max-width:110px;font-size:12px">
                 ${['text','textarea','date','number','select'].map(t=>`<option value="${t}"${type===t?' selected':''}>${t}</option>`).join('')}
               </select>
-              <span style="flex:1;font-size:11px;color:var(--gray-400);display:flex;align-items:center;padding:0 4px">{{${esc(k)}}}</span>
-              <button type="button" class="btn btn-danger btn-icon btn-sm" onclick="this.closest('.field-row').remove()">${icon('trash',13)}</button>
+              <code style="flex:1;font-size:11px;color:var(--slate-l);white-space:nowrap;overflow:hidden">{{${esc(k)}}}</code>
+              <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="this.closest('.field-row').remove()">${icon('trash',13)}</button>
             </div>`;
           }).join('')}
         </div>
-        <div class="form-hint">Use <code>{{field_key}}</code> as placeholders in the contract body below</div>
+        <div class="form-hint" style="margin-top:6px">Use <code style="background:var(--surface-1);padding:1px 5px;border-radius:4px;font-size:11px">{{field_key}}</code> placeholders in the contract body below</div>
       </div>
       <div class="form-group">
         <label>Contract Body (HTML) *</label>
         <textarea id="tf-body" class="form-control" rows="12"
-          style="font-family:monospace;font-size:12px"
+          style="font-family:ui-monospace,'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.6"
           placeholder="&lt;h1&gt;{{contract_title}}&lt;/h1&gt;&#10;&lt;h2&gt;1. Parties&lt;/h2&gt;&#10;&lt;p&gt;...">${esc(tpl.contract_body||'')}</textarea>
       </div>`;
 
@@ -1065,7 +1091,7 @@ Pages.templates = async function() {
       modalBody,
       `<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="window._saveTpl(${id||'null'})">
-         ${id ? 'Update' : 'Create'} Template
+         ${icon(id ? 'save' : 'plus', 14)} ${id ? 'Update' : 'Create'} Template
        </button>`
     );
   };
@@ -1074,14 +1100,14 @@ Pages.templates = async function() {
     const n   = document.querySelectorAll('.field-row').length + 1;
     const row = document.createElement('div');
     row.className = 'field-row';
-    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
+    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
     row.innerHTML = `
-      <input class="form-control tf-fkey" style="font-family:monospace;max-width:140px" value="field_${n}">
-      <select class="form-control tf-ftype" style="max-width:110px">
+      <input class="form-control tf-fkey" style="font-family:monospace;font-size:12px;max-width:150px" value="field_${n}" placeholder="field_key">
+      <select class="form-control tf-ftype" style="max-width:110px;font-size:12px">
         ${['text','textarea','date','number','select'].map(t=>`<option value="${t}">${t}</option>`).join('')}
       </select>
-      <span style="flex:1;font-size:11px;color:var(--gray-400);display:flex;align-items:center;padding:0 4px">{{field_${n}}}</span>
-      <button type="button" class="btn btn-danger btn-icon btn-sm" onclick="this.closest('.field-row').remove()">${icon('trash',13)}</button>`;
+      <code style="flex:1;font-size:11px;color:var(--slate-l);white-space:nowrap;overflow:hidden">{{field_${n}}}</code>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="this.closest('.field-row').remove()">${icon('trash',13)}</button>`;
     document.getElementById('tf-fields').appendChild(row);
   };
 
@@ -1093,13 +1119,13 @@ Pages.templates = async function() {
       if (k) schema[k] = t;
     });
     const data = {
-      name: document.getElementById('tf-name').value,
-      name_ar: document.getElementById('tf-name-ar').value,
-      category: document.getElementById('tf-cat').value,
-      language: document.getElementById('tf-lang').value,
-      ai_prompt: document.getElementById('tf-ai').value,
+      name:                 document.getElementById('tf-name').value,
+      name_ar:              document.getElementById('tf-name-ar').value,
+      category:             document.getElementById('tf-cat').value,
+      language:             document.getElementById('tf-lang').value,
+      ai_prompt:            document.getElementById('tf-ai').value,
       questionnaire_schema: schema,
-      contract_body: document.getElementById('tf-body').value,
+      contract_body:        document.getElementById('tf-body').value,
     };
     const d = id ? await API.templates.update(id, data) : await API.templates.create(data);
     if (d.success) {
@@ -1113,7 +1139,7 @@ Pages.templates = async function() {
   };
 };
 
-// ── COUNTERPARTIES ────────────────────────────────────────────
+// ── COUNTERPARTIESES ────────────────────────────────────────────
 Pages.counterparties = async function(params) {
   params = params || {};
   setTitle('Counterparties'); showLoading();
@@ -1238,7 +1264,7 @@ Pages.team = async function() {
 
   setPage(`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <span style="color:var(--gray-600);font-size:13px">${rows.length} member${rows.length!==1?'s':''}</span>
+      <span style="color:var(--slate);font-size:13px">${rows.length} member${rows.length!==1?'s':''}</span>
       ${canManage ? `<button class="btn btn-primary btn-sm" onclick="window._openInvite()">${icon('plus',14)} Invite Member</button>` : ''}
     </div>
     <div class="card">
@@ -1371,10 +1397,10 @@ Pages.settings = async function() {
             <div class="form-group"><label>Full Name</label><input id="prof-name" class="form-control" value="${esc(me&&me.full_name||'')}"></div>
             <div class="form-group">
               <label>Email</label>
-              <input class="form-control" value="${esc(me&&me.email||'')}" style="background:var(--gray-50);color:var(--gray-400)" readonly>
+              <input class="form-control" value="${esc(me&&me.email||'')}" style="background:var(--surface);color:var(--slate-l)" readonly>
             </div>
-            <hr style="border:none;border-top:1px solid var(--gray-200);margin:12px 0">
-            <div style="font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:8px">Change Password</div>
+            <hr style="border:none;border-top:1px solid var(--slate-xl);margin:12px 0">
+            <div style="font-size:12px;font-weight:600;color:var(--slate);margin-bottom:8px">Change Password</div>
             <div class="form-group"><label>Current Password</label><input id="prof-cur" type="password" class="form-control"></div>
             <div class="form-group"><label>New Password</label><input id="prof-new" type="password" class="form-control"></div>
             <div class="form-group"><label>Confirm New Password</label><input id="prof-conf" type="password" class="form-control"></div>
@@ -1457,30 +1483,46 @@ Pages.settings = async function() {
 // ════════════════════════════════════════════════════════════
 function renderShell(user) {
   const u        = user || {};
-  const initials = (u.full_name||'U')[0].toUpperCase();
+  const initials = (u.full_name||'U').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
 
   const navItems = [
-    { r:'dashboard',      l:'Dashboard',      i:'grid'    },
-    { r:'contracts',      l:'Contracts',      i:'file'    },
-    { r:'templates',      l:'Templates',      i:'layout'  },
-    { r:'counterparties', l:'Counterparties', i:'users'   },
-    { r:'team',           l:'Team',           i:'users'   },
-    { r:'settings',       l:'Settings',       i:'settings'},
+    { r:'dashboard',      l:'Dashboard',      i:'grid',    section: 'workspace' },
+    { r:'contracts',      l:'Contracts',      i:'file',    section: 'workspace' },
+    { r:'templates',      l:'Templates',      i:'layout',  section: 'workspace' },
+    { r:'counterparties', l:'Counterparties', i:'users',   section: 'workspace' },
+    { r:'team',           l:'Team',           i:'users',   section: 'manage'    },
+    { r:'settings',       l:'Settings',       i:'settings',section: 'manage'    },
   ];
+
+  const workspaceItems = navItems.filter(n => n.section === 'workspace');
+  const manageItems    = navItems.filter(n => n.section === 'manage');
 
   document.getElementById('app').innerHTML = `
     <nav class="sidebar" id="sidebar">
       <a class="sidebar-brand" href="#/dashboard">
         <div class="brand-icon">C</div>
-        <div class="brand-name">ContractAI</div>
+        <div>
+          <div class="brand-name">ContractAI</div>
+          <div class="brand-sub">Legal Intelligence</div>
+        </div>
       </a>
+
       <div class="nav-section">
-        <div class="nav-label">Menu</div>
-        ${navItems.map(n => `
+        <div class="nav-label">Workspace</div>
+        ${workspaceItems.map(n => `
           <div class="nav-item" id="nav-${n.r}" onclick="App.go('${n.r}')">
-            ${icon(n.i)} ${n.l}
+            ${icon(n.i, 16)} <span>${n.l}</span>
           </div>`).join('')}
       </div>
+
+      <div class="nav-section">
+        <div class="nav-label">Manage</div>
+        ${manageItems.map(n => `
+          <div class="nav-item" id="nav-${n.r}" onclick="App.go('${n.r}')">
+            ${icon(n.i, 16)} <span>${n.l}</span>
+          </div>`).join('')}
+      </div>
+
       <div class="sidebar-footer">
         <div class="user-chip">
           <div class="user-avatar">${initials}</div>
@@ -1495,29 +1537,32 @@ function renderShell(user) {
 
     <div class="main" id="main">
       <div class="topbar">
-        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('sidebar').classList.toggle('open')" style="display:none" id="mob-menu-btn">
+        <button class="btn btn-ghost btn-icon" id="mob-menu-btn"
+          onclick="document.getElementById('sidebar').classList.toggle('open');document.getElementById('sidebar-overlay').classList.toggle('hidden')"
+          style="display:none">
           ${icon('menu')}
         </button>
         <div class="topbar-title" id="page-title">Dashboard</div>
         <div class="topbar-actions">
-          <button class="btn btn-primary btn-sm" onclick="App.go('contracts/new')">
-            ${icon('zap',15)} New Contract
+          <button class="btn btn-gold btn-sm" onclick="App.go('contracts/new')">
+            ${icon('zap',14)} New Contract
           </button>
         </div>
       </div>
       <div class="page" id="page-content">
-        <div style="text-align:center;padding:60px 20px;color:var(--gray-400)">Loading…</div>
+        <div style="text-align:center;padding:60px 20px;color:var(--slate-l)">Loading…</div>
       </div>
-    </div>`;
+    </div>
 
-  // Show mobile menu button on small screens
-  if (window.innerWidth < 768) {
-    document.getElementById('mob-menu-btn').style.display = '';
-  }
-  window.addEventListener('resize', () => {
+    <div id="sidebar-overlay" class="hidden" onclick="document.getElementById('sidebar').classList.remove('open');this.classList.add('hidden')"
+      style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:199;backdrop-filter:blur(2px)"></div>`;
+
+  const handleResize = () => {
     const btn = document.getElementById('mob-menu-btn');
     if (btn) btn.style.display = window.innerWidth < 768 ? '' : 'none';
-  });
+  };
+  handleResize();
+  window.addEventListener('resize', handleResize);
 }
 
 function updateNav(route) {

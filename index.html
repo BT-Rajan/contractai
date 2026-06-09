@@ -9,7 +9,7 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 
   <!-- App CSS -->
   <link rel="stylesheet" href="assets/css/app.css">
@@ -18,33 +18,55 @@
     /* Initial loading screen */
     #initial-load {
       position: fixed; inset: 0;
-      background: #1a3c5e;
+      background: #0f1729;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      z-index: 9999; transition: opacity .4s ease;
+      z-index: 9999; transition: opacity .5s ease;
     }
     #initial-load.fade { opacity: 0; pointer-events: none; }
+    .init-wrap { display: flex; flex-direction: column; align-items: center; }
     .init-icon {
-      width: 64px; height: 64px; border-radius: 16px;
-      background: #c9a84c; color: #1a3c5e;
+      width: 60px; height: 60px; border-radius: 15px;
+      background: linear-gradient(135deg, #c9a84c, #a8893a);
+      color: #0f1729;
       display: flex; align-items: center; justify-content: center;
-      font-size: 32px; font-weight: 800; margin-bottom: 20px;
+      font-size: 28px; font-weight: 900; margin-bottom: 18px;
+      box-shadow: 0 8px 32px rgba(201,168,76,.35);
     }
-    .init-name { color: #fff; font-size: 28px; font-weight: 800; margin-bottom: 8px; }
-    .init-sub  { color: rgba(255,255,255,.5); font-size: 14px; margin-bottom: 32px; }
-    .init-bar  { width: 200px; height: 3px; background: rgba(255,255,255,.2); border-radius: 3px; overflow: hidden; }
-    .init-fill { height: 100%; background: #c9a84c; border-radius: 3px; animation: initLoad 1.2s ease forwards; }
-    @keyframes initLoad { from { width: 0 } to { width: 100% } }
+    .init-name {
+      color: #fff; font-size: 24px; font-weight: 800;
+      margin-bottom: 4px; letter-spacing: -.4px;
+      font-family: 'Inter', sans-serif;
+    }
+    .init-sub  { color: rgba(255,255,255,.35); font-size: 12px; margin-bottom: 40px; letter-spacing: .6px; text-transform: uppercase; }
+    .init-dots { display: flex; gap: 6px; }
+    .init-dot  {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,.2);
+      animation: dotPulse 1.2s ease infinite;
+    }
+    .init-dot:nth-child(2) { animation-delay: .2s; }
+    .init-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes dotPulse {
+      0%, 100% { background: rgba(255,255,255,.15); transform: scale(1); }
+      50% { background: #c9a84c; transform: scale(1.3); }
+    }
   </style>
 </head>
 <body>
 
 <!-- Initial Loading Screen -->
 <div id="initial-load">
-  <div class="init-icon">C</div>
-  <div class="init-name">ContractAI</div>
-  <div class="init-sub">Enterprise AI Contract Drafting</div>
-  <div class="init-bar"><div class="init-fill"></div></div>
+  <div class="init-wrap">
+    <div class="init-icon">C</div>
+    <div class="init-name">ContractAI</div>
+    <div class="init-sub">Enterprise Legal Intelligence</div>
+    <div class="init-dots">
+      <div class="init-dot"></div>
+      <div class="init-dot"></div>
+      <div class="init-dot"></div>
+    </div>
+  </div>
 </div>
 
 <!-- SPA Mount Point -->
@@ -57,21 +79,18 @@
 <script src="assets/js/api.js"></script>
 <script src="assets/js/app.js"></script>
 <script>
-  // Remove initial loader once app JS boots
   window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       const el = document.getElementById('initial-load');
       el.classList.add('fade');
-      setTimeout(() => el.remove(), 400);
-    }, 800);
+      setTimeout(() => el.remove(), 500);
+    }, 900);
   });
 
-  // Apply tenant brand color dynamically after login
   window.applyBrandColor = function(color) {
-    if (color) document.documentElement.style.setProperty('--navy', color);
+    if (color) document.documentElement.style.setProperty('--ink-soft', color);
   };
 
-  // Apply RTL/LTR after login
   window.applyLang = function(lang) {
     const html = document.getElementById('html-root');
     if (lang === 'ar') { html.setAttribute('lang','ar'); html.setAttribute('dir','rtl'); }
