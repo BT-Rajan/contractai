@@ -225,15 +225,16 @@ function contract_pdf(array $user, int $id): void {
     }
 
     $path = pdf_build($id, $html, $lang, $row['title']);
-    if (!$path) api_error('PDF generation failed', 500);
-
     pdf_stream($path, $row['title']);
 }
 
-function pdf_build(int $id, string $html, string $lang, string $title): ?string {
+function pdf_build(int $id, string $html, string $lang, string $title): string {
     try {
-        $dir = STORAGE_PATH . '/pdfs/' . $id;
-        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        $dir    = STORAGE_PATH . '/pdfs/' . $id;
+        $tmpDir = STORAGE_PATH . '/tmp';
+        foreach ([$dir, $tmpDir] as $d) {
+            if (!is_dir($d)) mkdir($d, 0755, true);
+        }
 
         $isRtl = ($lang === 'ar');
         $mpdf  = new \Mpdf\Mpdf([
@@ -262,7 +263,7 @@ function pdf_build(int $id, string $html, string $lang, string $title): ?string 
         return "{$dir}/{$file}";
     } catch (\Exception $e) {
         log_error('PDF build failed', ['msg' => $e->getMessage()]);
-        return null;
+        api_error('PDF build failed: ' . $e->getMessage(), 500);
     }
 }
 

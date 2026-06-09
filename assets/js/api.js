@@ -139,19 +139,29 @@ const API = (() => {
       const url     = `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}`;
       const headers = { Accept: 'application/pdf' };
       if (store.access) headers['Authorization'] = 'Bearer ' + store.access;
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        return { success: false, message: err.message || `HTTP ${res.status}` };
+      let res;
+      try {
+        res = await fetch(url, { headers });
+      } catch (e) {
+        return { success: false, message: 'Network error: ' + e.message };
       }
-      const blob = await res.blob();
-      const a    = document.createElement('a');
-      a.href     = URL.createObjectURL(blob);
-      a.download = `${filename}_${lang}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-      return { success: true };
+      const ct = res.headers.get('Content-Type') || '';
+      if (ct.includes('application/pdf')) {
+        const blob = await res.blob();
+        const a    = document.createElement('a');
+        a.href     = URL.createObjectURL(blob);
+        a.download = `${filename}_${lang}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+        return { success: true };
+      }
+      // Not a PDF — read the body text for the actual error message
+      const text = await res.text();
+      let msg = `HTTP ${res.status}`;
+      try { msg = JSON.parse(text).message || msg; } catch { msg = text.substring(0, 200) || msg; }
+      console.error('[PDF] Server response:', text);
+      return { success: false, message: msg };
     },
   };
 

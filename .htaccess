@@ -16,13 +16,24 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # ── CRITICAL: pass Authorization header to PHP ───────────────
+    # Apache/CGI strips Authorization by default. These two rules
+    # expose it as HTTP_AUTHORIZATION (mod_php) and REDIRECT_HTTP_AUTHORIZATION
+    # (CGI/FastCGI). bootstrap.php reads both via apache_request_headers()
+    # and $_SERVER. Without this, every Bearer token request returns 401.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # CGI / FastCGI fallback
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
     # Block dotfiles
     RewriteRule (^|/)\.(?!well-known) - [F,L]
 
     # Block backend directories
     RewriteRule ^(core|logs|storage)(\/|$) - [F,L]
 
-    # Block PHP execution in uploads (belt-and-suspenders)
+    # Block PHP execution in uploads
     RewriteRule ^uploads/.*\.(php[0-9]?|phtml|pl|py|sh|cgi)$ - [F,L]
 
     # Allow /api/, /uploads/, /assets/ to pass through directly

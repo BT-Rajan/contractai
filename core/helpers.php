@@ -74,14 +74,21 @@ function jwt_make(array $user): array {
 }
 
 function jwt_from_request(): ?array {
+    // 1. Standard — mod_php sets this directly
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+
+    // 2. CGI/FastCGI: Apache may pass it as REDIRECT_HTTP_AUTHORIZATION
+    if (!$auth) $auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+
+    // 3. apache_request_headers() — catches mod_rewrite E= passthrough
     if (!$auth && function_exists('apache_request_headers')) {
         $hdrs = apache_request_headers();
         $auth = $hdrs['Authorization'] ?? $hdrs['authorization'] ?? '';
     }
+
     if (str_starts_with($auth, 'Bearer ')) return jwt_decode(substr($auth, 7));
 
-    // Cookie fallback (set by auth.php on login for same-origin requests)
+    // 4. Cookie fallback (set by auth.php on login for same-origin requests)
     $cookie = $_COOKIE['access_token'] ?? '';
     if ($cookie) return jwt_decode($cookie);
 
