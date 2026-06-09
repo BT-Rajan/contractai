@@ -81,16 +81,9 @@ function jwt_from_request(): ?array {
     }
     if (str_starts_with($auth, 'Bearer ')) return jwt_decode(substr($auth, 7));
 
-    // Cookie fallback (used by browser direct navigation, e.g. PDF download links)
+    // Cookie fallback (set by auth.php on login for same-origin requests)
     $cookie = $_COOKIE['access_token'] ?? '';
     if ($cookie) return jwt_decode($cookie);
-
-    // Query-string fallback — only accepted for the PDF streaming endpoint.
-    // Browser <a href> / window.open cannot attach Authorization headers,
-    // so we allow ?token=... exclusively for that case. The token is still
-    // the same short-lived signed JWT so security properties are unchanged.
-    $qs = $_GET['token'] ?? '';
-    if ($qs) return jwt_decode($qs);
 
     return null;
 }

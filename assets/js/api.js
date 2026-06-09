@@ -132,9 +132,26 @@ const API = (() => {
     save     : (id, d)  => post(`contracts.php?id=${id}`, { ...d, _method: 'PUT' }),
     finalize : (id)     => post(`contracts.php?action=finalize&id=${id}`, {}),
     delete   : (id)     => post(`contracts.php?id=${id}`, { _method: 'DELETE' }),
-    pdfUrl   : (id, lang = 'en') => {
-      const tok = store.access ? `&token=${encodeURIComponent(store.access)}` : '';
-      return `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}${tok}`;
+    pdfUrl      : (id, lang = 'en') => `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}`,
+    pdfDownload : async (id, lang = 'en', filename = 'contract') => {
+      // Fetch via XHR so the Authorization header is sent — avoids the
+      // unauthenticated problem that occurs with plain <a href> navigation.
+      const url     = `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}`;
+      const headers = { Accept: 'application/pdf' };
+      if (store.access) headers['Authorization'] = 'Bearer ' + store.access;
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { success: false, message: err.message || `HTTP ${res.status}` };
+      }
+      const blob = await res.blob();
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = `${filename}_${lang}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      return { success: true };
     },
   };
 

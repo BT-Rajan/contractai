@@ -171,6 +171,19 @@ function setPage(html) {
   if (el) el.innerHTML = html;
 }
 
+// Global PDF download handler — uses fetch() with Authorization header so
+// the JWT is sent correctly. Plain <a href> can't attach headers.
+window._downloadPdf = async function(id, lang, btn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  const title = btn.closest('tr')?.querySelector('td')?.textContent?.trim() || `contract_${id}`;
+  const res = await API.contracts.pdfDownload(id, lang, title);
+  if (!res.success) toast(res.message || 'PDF generation failed', 'error');
+  btn.disabled = false;
+  btn.innerHTML = orig;
+};
+
 function quotaBar(used, max) {
   const pct = max > 0 ? Math.round(used / max * 100) : 0;
   const cls = pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : '';
@@ -618,7 +631,7 @@ Pages.contracts = async function(params) {
                   <td>
                     <div style="display:flex;gap:4px">
                       <button class="btn btn-ghost btn-icon btn-sm" onclick="App.go('contract',{id:${c.id}})" title="Open">${icon('eye',14)}</button>
-                      <a class="btn btn-ghost btn-icon btn-sm" href="${API.contracts.pdfUrl(c.id,'en')}" target="_blank" title="PDF">${icon('download',14)}</a>
+                      <button class="btn btn-ghost btn-icon btn-sm" onclick="window._downloadPdf(${c.id},'en',this)" title="Download PDF">${icon('download',14)}</button>
                       ${c.status==='draft' ? `<button class="btn btn-ghost btn-icon btn-sm" onclick="window._delContract(${c.id},this)" title="Delete">${icon('trash',14)}</button>` : ''}
                     </div>
                   </td>
@@ -867,8 +880,8 @@ Pages.contractEditor = async function(params) {
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${!isFin ? `<button class="btn btn-outline btn-sm" id="save-btn" onclick="window._saveCon(${id})">Save Draft</button>` : ''}
-        <a class="btn btn-outline btn-sm" href="${API.contracts.pdfUrl(id,'en')}" target="_blank">${icon('download',14)} PDF (EN)</a>
-        ${c.language !== 'en' ? `<a class="btn btn-outline btn-sm" href="${API.contracts.pdfUrl(id,'ar')}" target="_blank">PDF (AR)</a>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="window._downloadPdf(${id},'en',this)">${icon('download',14)} PDF (EN)</button>
+        ${c.language !== 'en' ? `<button class="btn btn-outline btn-sm" onclick="window._downloadPdf(${id},'ar',this)">PDF (AR)</button>` : ''}
         ${!isFin ? `<button class="btn btn-primary btn-sm" onclick="window._finCon(${id})">Finalise</button>` : ''}
       </div>
     </div>
