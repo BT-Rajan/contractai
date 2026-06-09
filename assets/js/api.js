@@ -132,7 +132,10 @@ const API = (() => {
     save     : (id, d)  => post(`contracts.php?id=${id}`, { ...d, _method: 'PUT' }),
     finalize : (id)     => post(`contracts.php?action=finalize&id=${id}`, {}),
     delete   : (id)     => post(`contracts.php?id=${id}`, { _method: 'DELETE' }),
-    pdfUrl   : (id, lang = 'en') => `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}`,
+    pdfUrl   : (id, lang = 'en') => {
+      const tok = store.access ? `&token=${encodeURIComponent(store.access)}` : '';
+      return `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}${tok}`;
+    },
   };
 
   // ── Templates ─────────────────────────────────────────────────

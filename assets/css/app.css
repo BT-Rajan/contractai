@@ -325,9 +325,12 @@ tbody tr:hover td { background: var(--surface); }
 /* ── Auth pages ──────────────────────────────────────────── */
 .auth-page {
   min-height: 100vh;
+  width: 100%;
   background: var(--ink);
   display: flex; align-items: center; justify-content: center; padding: 24px;
   position: relative; overflow: hidden;
+  /* Break out of #app flex row so it fills the whole viewport */
+  flex: 1;
 }
 /* Geometric background pattern */
 .auth-page::before {
