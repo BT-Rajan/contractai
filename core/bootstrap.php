@@ -1,13 +1,32 @@
 <?php
 declare(strict_types=1);
 
-// Composer autoloader — must come first so vendor classes (mPDF etc.) are available
+// ── Global exception/error handler — must be first ───────────
+// Catches any uncaught PDOException, TypeError, etc. and returns
+// a clean JSON 500 instead of a raw PHP error page.
+set_exception_handler(function (Throwable $e): void {
+    while (ob_get_level() > 0) ob_end_clean();
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    $msg = (defined('APP_DEBUG') && APP_DEBUG)
+        ? $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine()
+        : 'Internal server error';
+    echo json_encode(['success' => false, 'message' => $msg], JSON_UNESCAPED_UNICODE);
+    exit;
+});
+
+set_error_handler(function (int $no, string $str, string $file, int $line): bool {
+    if (!($no & error_reporting())) return false;
+    throw new ErrorException($str, 0, $no, $file, $line);
+});
+
+// Composer autoloader — must come before any vendor class usage (mPDF etc.)
 $autoload = __DIR__ . '/../vendor/autoload.php';
 if (file_exists($autoload)) {
     require_once $autoload;
 }
 
-// Buffer ALL output so PHP warnings never corrupt JSON responses
+// Buffer output so PHP warnings never corrupt JSON responses
 ob_start();
 
 require_once __DIR__ . '/config.php';
@@ -43,3 +62,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
     session_start();
 }
+
+// Auto-run pending migrations (no-op when schema is current)
+require_once __DIR__ . '/migrate.php';
+run_migrations();
