@@ -236,6 +236,10 @@ function pdf_build(int $id, string $html, string $lang, string $title): string {
             if (!is_dir($d)) mkdir($d, 0755, true);
         }
 
+        // mPDF manages its own output buffers internally. Discard bootstrap's
+        // ob_start() buffer now so there is no nesting conflict.
+        while (ob_get_level() > 0) ob_end_clean();
+
         $isRtl = ($lang === 'ar');
         $mpdf  = new \Mpdf\Mpdf([
             'mode'          => 'utf-8',
@@ -269,18 +273,26 @@ function pdf_build(int $id, string $html, string $lang, string $title): string {
 
 function pdf_stream(string $path, string $title): never {
     // Validate path is within expected storage directory to prevent path traversal
-    $realPath = realpath($path);
+    $realPath    = realpath($path);
     $realStorage = realpath(STORAGE_PATH);
     if (!$realPath || !$realStorage || !str_starts_with($realPath, $realStorage)) {
         http_response_code(403);
         exit('Forbidden');
     }
-    // Safe ASCII filename: strip non-safe chars, limit length to avoid header overflow
+
+    // Discard every open output buffer (including bootstrap's ob_start).
+    // If any buffer is left open, mPDF's internal ob_end_clean() or PHP's
+    // implicit flush will either corrupt the binary stream or swallow it entirely.
+    while (ob_get_level() > 0) ob_end_clean();
+
+    // Safe ASCII filename
     $name = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $title);
     $name = substr($name, 0, 100) . '.pdf';
+
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $name . '"');
     header('Content-Length: ' . filesize($realPath));
+    header('Cache-Control: private, no-store');
     header('X-Content-Type-Options: nosniff');
     readfile($realPath);
     exit;
