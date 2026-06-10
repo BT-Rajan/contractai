@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Each migration is idempotent — safe to run multiple times.
  */
 
-define('SCHEMA_VERSION', 2); // bump this when adding new migrations
+define('SCHEMA_VERSION', 3); // bump this when adding new migrations
 
 function run_migrations(): void {
     // Ensure app_options exists first (it stores the version number)
@@ -20,7 +20,7 @@ function run_migrations(): void {
     if ($current >= SCHEMA_VERSION) return;
 
     db_transaction(function () use ($current): void {
-        if ($current < 2) migration_2();
+        if ($current < 3) migration_2(); // re-run with repair logic
         db_run(
             "INSERT INTO app_options (option_key, option_value)
              VALUES ('schema_version', ?)
@@ -32,10 +32,11 @@ function run_migrations(): void {
 
 // ── Migration 1 → 2: Clause Library tables ────────────────────────────────
 function migration_2(): void {
+    // Create clauses table (full definition)
     db_run("CREATE TABLE IF NOT EXISTS clauses (
         id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         tenant_id    INT UNSIGNED NOT NULL,
-        clause_uid   VARCHAR(20)  NOT NULL,
+        clause_uid   VARCHAR(20)  NOT NULL DEFAULT '',
         title        VARCHAR(500) NOT NULL,
         title_ar     VARCHAR(500) NULL,
         category     VARCHAR(100) DEFAULT 'General',
@@ -47,10 +48,42 @@ function migration_2(): void {
         created_by   INT UNSIGNED NOT NULL,
         created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_uid_tenant (clause_uid, tenant_id),
         INDEX idx_tenant_cat (tenant_id, category)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    // Repair: add any missing columns to clauses (handles partial prior creation)
+    $existingCols = array_column(
+        db_rows("SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'clauses'"),
+        'COLUMN_NAME'
+    );
+
+    $addCols = [
+        'clause_uid'   => "ADD COLUMN clause_uid   VARCHAR(20)  NOT NULL DEFAULT '' AFTER tenant_id",
+        'title_ar'     => "ADD COLUMN title_ar     VARCHAR(500) NULL AFTER title",
+        'body_html_ar' => "ADD COLUMN body_html_ar LONGTEXT     NULL AFTER body_html",
+        'tags'         => "ADD COLUMN tags         VARCHAR(500) NULL AFTER body_html_ar",
+        'is_active'    => "ADD COLUMN is_active    TINYINT(1)   DEFAULT 1 AFTER tags",
+        'version'      => "ADD COLUMN version      SMALLINT UNSIGNED DEFAULT 1 AFTER is_active",
+        'updated_at'   => "ADD COLUMN updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
+    ];
+    foreach ($addCols as $col => $ddl) {
+        if (!in_array($col, $existingCols, true)) {
+            try { db_run("ALTER TABLE clauses {$ddl}"); } catch (Throwable) {}
+        }
+    }
+
+    // Add unique index on clause_uid+tenant_id if missing
+    $indexes = array_column(
+        db_rows("SELECT INDEX_NAME FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'clauses'"),
+        'INDEX_NAME'
+    );
+    if (!in_array('uq_uid_tenant', $indexes, true)) {
+        try { db_run("ALTER TABLE clauses ADD UNIQUE KEY uq_uid_tenant (clause_uid, tenant_id)"); } catch (Throwable) {}
+    }
+
+    // Create template_clauses join table
     db_run("CREATE TABLE IF NOT EXISTS template_clauses (
         id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         template_id INT UNSIGNED NOT NULL,
@@ -60,34 +93,25 @@ function migration_2(): void {
         INDEX idx_template (template_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Add clause_ids column to templates if it doesn't exist
-    $col = db_val(
-        "SELECT COUNT(*) FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE()
-           AND TABLE_NAME   = 'templates'
-           AND COLUMN_NAME  = 'clause_ids'"
+    // Add clause_ids column to templates if missing
+    $tplCols = array_column(
+        db_rows("SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'templates'"),
+        'COLUMN_NAME'
     );
-    if (!$col) {
-        db_run("ALTER TABLE templates ADD COLUMN clause_ids TEXT NULL
-                COMMENT 'JSON array of ordered clause IDs'
-                AFTER questionnaire_schema");
+    if (!in_array('clause_ids', $tplCols, true)) {
+        try {
+            db_run("ALTER TABLE templates ADD COLUMN clause_ids TEXT NULL
+                    COMMENT 'JSON array of ordered clause IDs'
+                    AFTER questionnaire_schema");
+        } catch (Throwable) {}
     }
 
-    // Add FK constraints only if both tables were just created cleanly
-    // (skipped if DB doesn't support it or tables already had data)
-    try {
-        db_run("ALTER TABLE clauses
-                ADD CONSTRAINT fk_clauses_tenant
-                    FOREIGN KEY (tenant_id)  REFERENCES tenants(id) ON DELETE CASCADE,
-                ADD CONSTRAINT fk_clauses_user
-                    FOREIGN KEY (created_by) REFERENCES users(id)");
-    } catch (Throwable) { /* ignore if FK already exists or FK support off */ }
-
-    try {
-        db_run("ALTER TABLE template_clauses
-                ADD CONSTRAINT fk_tc_template
-                    FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
-                ADD CONSTRAINT fk_tc_clause
-                    FOREIGN KEY (clause_id)   REFERENCES clauses(id)   ON DELETE CASCADE");
-    } catch (Throwable) { /* ignore */ }
+    // Add FK constraints (best-effort — ignored if already exist or FK off)
+    try { db_run("ALTER TABLE clauses
+        ADD CONSTRAINT fk_clauses_tenant FOREIGN KEY (tenant_id)  REFERENCES tenants(id) ON DELETE CASCADE,
+        ADD CONSTRAINT fk_clauses_user   FOREIGN KEY (created_by) REFERENCES users(id)"); } catch (Throwable) {}
+    try { db_run("ALTER TABLE template_clauses
+        ADD CONSTRAINT fk_tc_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+        ADD CONSTRAINT fk_tc_clause   FOREIGN KEY (clause_id)   REFERENCES clauses(id)   ON DELETE CASCADE"); } catch (Throwable) {}
 }
