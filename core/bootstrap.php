@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+// Composer autoloader — must come first so vendor classes (mPDF etc.) are available
+$autoload = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($autoload)) {
+    require_once $autoload;
+}
+
 // Buffer ALL output so PHP warnings never corrupt JSON responses
 ob_start();
 

@@ -221,7 +221,7 @@ function contract_pdf(array $user, int $id): void {
 
     // Generate fresh PDF
     if (!class_exists('\\Mpdf\\Mpdf')) {
-        api_error('PDF generation requires mPDF. Run: composer require mpdf/mpdf', 501);
+        api_error('mPDF not found. Run: composer require mpdf/mpdf inside the project root, then ensure vendor/ is present on the server.', 501);
     }
 
     $path = pdf_build($id, $html, $lang, $row['title']);
