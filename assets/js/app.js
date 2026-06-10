@@ -50,7 +50,7 @@ function hideLoading() {
 }
 
 /** Render a modal dialog */
-function showModal(title, bodyHtml, footerHtml) {
+function showModal(title, bodyHtml, footerHtml, wide = false) {
   let mask = document.getElementById('cai-modal');
   if (!mask) {
     mask = document.createElement('div');
@@ -59,7 +59,7 @@ function showModal(title, bodyHtml, footerHtml) {
     mask.addEventListener('click', ev => { if (ev.target === mask) closeModal(); });
   }
   mask.innerHTML = `
-    <div class="modal-box">
+    <div class="modal-box${wide ? ' wide' : ''}">
       <div class="modal-hd">
         <h3>${esc(title)}</h3>
         <button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button>
@@ -145,6 +145,8 @@ const SVG = {
   globe:    '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
   clock:    '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   save:     '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  book:     '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  check2:   '<polyline points="20 6 9 17 4 12"/>',
 };
 
 function icon(name, size) {
@@ -967,19 +969,217 @@ Pages.contractEditor = async function(params) {
 };
 
 // ── TEMPLATES ─────────────────────────────────────────────────
-Pages.templates = async function() {
-  setTitle('Templates'); showLoading();
-  const d = await API.templates.list();
+// ── CLAUSE LIBRARY ──────────────────────────────────────────
+Pages.clauses = async function() {
+  setTitle('Clause Library'); showLoading();
+  const d = await API.clauses.list({ per_page: 200 });
   hideLoading();
-  const rows   = (d.data && d.data.data) ? d.data.data : [];
-  const me     = API.store.user;
+  const rows = d.data?.data || [];
+  const cats = d.data?.categories || [];
+  const me   = API.store.user;
   const canEdit = me && (me.role === 'owner' || me.role === 'admin');
 
   setPage(`
     <div class="page-header">
       <div class="page-header-left">
+        <h2>Clause Library</h2>
+        <p>${rows.length} clause${rows.length !== 1 ? 's' : ''} available</p>
+      </div>
+      ${canEdit ? `<button class="btn btn-primary" onclick="window._openClauseForm()">${icon('plus',15)} New Clause</button>` : ''}
+    </div>
+
+    <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px">
+      <input id="clause-search" class="form-control" placeholder="Search clauses…" style="max-width:280px"
+        oninput="window._filterClauses(this.value)">
+      <select id="clause-cat-filter" class="form-control" style="max-width:180px"
+        onchange="window._filterClauses(document.getElementById('clause-search').value)">
+        <option value="">All Categories</option>
+        ${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+      </select>
+    </div>
+
+    ${!rows.length ? `
+    <div class="card">
+      <div class="empty">
+        <div class="empty-icon">📚</div>
+        <h3>No clauses yet</h3>
+        <p>Build your clause library. Each clause gets a unique ID and can be reused across multiple templates.</p>
+        ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="window._openClauseForm()">${icon('plus',14)} Add First Clause</button>` : ''}
+      </div>
+    </div>` : `
+    <div class="card">
+      <div class="table-wrap">
+        <table id="clause-table">
+          <thead>
+            <tr>
+              <th style="width:100px">ID</th>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Tags</th>
+              <th style="width:60px">Ver.</th>
+              <th style="width:120px">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(c => `
+            <tr data-title="${esc(c.title.toLowerCase())}" data-cat="${esc(c.category.toLowerCase())}" data-tags="${esc((c.tags||'').toLowerCase())}">
+              <td><code style="font-size:11px;background:var(--surface-1);padding:2px 7px;border-radius:4px;font-weight:600;color:var(--ink-muted)">${esc(c.clause_uid)}</code></td>
+              <td>
+                <div class="fw-600">${esc(c.title)}</div>
+                ${c.title_ar ? `<div style="font-size:11px;color:var(--slate-l);direction:rtl;text-align:right">${esc(c.title_ar)}</div>` : ''}
+              </td>
+              <td><span class="badge badge-draft" style="font-size:10.5px">${esc(c.category)}</span></td>
+              <td style="font-size:11.5px;color:var(--slate)">
+                ${(c.tags||'').split(',').filter(Boolean).map(t=>`<span style="background:var(--surface-1);padding:1px 7px;border-radius:4px;margin-right:3px">${esc(t.trim())}</span>`).join('')}
+              </td>
+              <td style="color:var(--slate-l);font-size:12px">v${c.version}</td>
+              <td>
+                <div style="display:flex;gap:4px">
+                  <button class="btn btn-ghost btn-icon btn-sm" onclick="window._previewClause(${c.id})" title="Preview">${icon('eye',13)}</button>
+                  ${canEdit ? `
+                  <button class="btn btn-ghost btn-icon btn-sm" onclick="window._openClauseForm(${c.id})" title="Edit">${icon('edit',13)}</button>
+                  <button class="btn btn-ghost btn-icon btn-sm" onclick="window._deleteClause(${c.id},this)" title="Delete" style="color:var(--slate)">${icon('trash',13)}</button>` : ''}
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`}`);
+
+  // Store clause data for picker reuse
+  window._clauseData = rows;
+
+  window._filterClauses = function(q) {
+    const cat = document.getElementById('clause-cat-filter')?.value.toLowerCase() || '';
+    q = q.toLowerCase();
+    document.querySelectorAll('#clause-table tbody tr').forEach(tr => {
+      const matchQ   = !q   || tr.dataset.title.includes(q) || tr.dataset.tags.includes(q);
+      const matchCat = !cat || tr.dataset.cat === cat;
+      tr.style.display = (matchQ && matchCat) ? '' : 'none';
+    });
+  };
+
+  window._previewClause = async function(id) {
+    const d = await API.clauses.get(id);
+    if (!d.success) { toast(d.message, 'error'); return; }
+    const c = d.data;
+    showModal(
+      `${c.clause_uid} — ${c.title}`,
+      `<div style="margin-bottom:10px">
+         <span class="badge badge-draft">${esc(c.category)}</span>
+         <span style="font-size:11px;color:var(--slate);margin-left:8px">v${c.version}</span>
+         ${c.tags ? `<span style="font-size:11px;color:var(--slate-l);margin-left:8px">${esc(c.tags)}</span>` : ''}
+       </div>
+       <div style="background:var(--surface);border-radius:8px;padding:16px;font-family:Georgia,serif;font-size:13px;line-height:1.8;max-height:400px;overflow-y:auto;border:1px solid var(--slate-xl)">
+         ${c.body_html}
+       </div>`,
+      `<button class="btn btn-outline" onclick="closeModal()">Close</button>`
+    );
+  };
+
+  window._deleteClause = async function(id, btn) {
+    if (!confirm('Delete this clause? It cannot be deleted if used in active templates.')) return;
+    btn.disabled = true;
+    const d = await API.clauses.delete(id);
+    if (d.success) { toast('Clause deleted', 'success'); Pages.clauses(); }
+    else { toast(d.message, 'error'); btn.disabled = false; }
+  };
+
+  window._openClauseForm = async function(id) {
+    let c = {};
+    if (id) {
+      showLoading();
+      const d = await API.clauses.get(id);
+      hideLoading();
+      if (d.success) c = d.data;
+    }
+    showModal(
+      id ? `Edit Clause — ${c.clause_uid}` : 'New Clause',
+      `<div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label>Title (English) *</label>
+          <input id="cf-title" class="form-control" value="${esc(c.title||'')}" placeholder="e.g. Governing Law" required>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Category *</label>
+          <input id="cf-cat" list="cf-catlist" class="form-control" value="${esc(c.category||'General')}">
+          <datalist id="cf-catlist">
+            <option>General</option><option>Definitions</option><option>Payment</option>
+            <option>Termination</option><option>Confidentiality</option><option>Liability</option>
+            <option>Governing Law</option><option>Dispute Resolution</option><option>IP Rights</option>
+          </datalist>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Title (Arabic)</label>
+        <input id="cf-title-ar" class="form-control rtl-input" dir="rtl" value="${esc(c.title_ar||'')}" placeholder="العنوان بالعربية">
+      </div>
+      <div class="form-group">
+        <label>Tags <span class="form-hint" style="display:inline">comma-separated</span></label>
+        <input id="cf-tags" class="form-control" value="${esc(c.tags||'')}" placeholder="nda, liability, uae">
+      </div>
+      <div class="form-group">
+        <label>Clause Body (HTML) *</label>
+        <div class="editor-toolbar" id="cf-toolbar">
+          ${['<b>B</b>','<i>I</i>','<u>U</u>'].map((l,i)=>`<button type="button" class="tb-btn" onclick="document.execCommand('${['bold','italic','underline'][i]}',false)">${l}</button>`).join('')}
+          <div class="tb-sep"></div>
+          ${[['H2','h2'],['H3','h3'],['P','p']].map(([l,t])=>`<button type="button" class="tb-btn" onclick="document.execCommand('formatBlock',false,'${t}')">${l}</button>`).join('')}
+          <div class="tb-sep"></div>
+          <button type="button" class="tb-btn" onclick="document.execCommand('insertUnorderedList',false)">• List</button>
+        </div>
+        <div id="cf-body" class="form-control editor-body"
+          style="min-height:200px;padding:14px 16px;font-family:Georgia,serif;font-size:13px;border-top:none;border-radius:0 0 8px 8px"
+          contenteditable="true">${c.body_html||''}</div>
+      </div>
+      <div class="form-group">
+        <label>Clause Body Arabic <span class="form-hint" style="display:inline">optional</span></label>
+        <div id="cf-body-ar" class="form-control editor-body rtl-input"
+          style="min-height:100px;padding:14px 16px;font-family:Cairo,serif;font-size:13px;direction:rtl"
+          contenteditable="true" dir="rtl">${c.body_html_ar||''}</div>
+      </div>`,
+      `<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="window._saveClause(${id||'null'})">
+         ${icon(id?'save':'plus',14)} ${id ? 'Update' : 'Create'} Clause
+       </button>`
+    );
+  };
+
+  window._saveClause = async function(id) {
+    const data = {
+      title:       document.getElementById('cf-title').value,
+      title_ar:    document.getElementById('cf-title-ar').value,
+      category:    document.getElementById('cf-cat').value,
+      tags:        document.getElementById('cf-tags').value,
+      body_html:   document.getElementById('cf-body').innerHTML,
+      body_html_ar:document.getElementById('cf-body-ar').innerHTML,
+    };
+    const d = id ? await API.clauses.update(id, data) : await API.clauses.create(data);
+    if (d.success) { toast(id ? 'Clause updated' : 'Clause created', 'success'); closeModal(); Pages.clauses(); }
+    else { if (d.errors) showErrors(d.errors); else toast(d.message||'Save failed','error'); }
+  };
+};
+
+Pages.templates = async function() {
+  setTitle('Templates'); showLoading();
+  const [td, cd] = await Promise.all([
+    API.templates.list(),
+    API.clauses.list({ per_page: 200 }),
+  ]);
+  hideLoading();
+  const rows      = (td.data && td.data.data) ? td.data.data : [];
+  const allClauses= (cd.data && cd.data.data) ? cd.data.data : [];
+  const me        = API.store.user;
+  const canEdit   = me && (me.role === 'owner' || me.role === 'admin');
+
+  // Cache clauses for the picker
+  window._allClauses = allClauses;
+
+  setPage(`
+    <div class="page-header">
+      <div class="page-header-left">
         <h2>Templates</h2>
-        <p>${rows.length} template${rows.length !== 1 ? 's' : ''} in your library</p>
+        <p>${rows.length} template${rows.length !== 1 ? 's' : ''} — built from Clause Library blocks</p>
       </div>
       ${canEdit ? `<button class="btn btn-primary" onclick="window._openTplForm()">${icon('plus',15)} New Template</button>` : ''}
     </div>
@@ -989,21 +1189,23 @@ Pages.templates = async function() {
       <div class="empty">
         <div class="empty-icon">📋</div>
         <h3>No templates yet</h3>
-        <p>Create reusable templates with smart questionnaire fields to speed up contract drafting.</p>
-        ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="window._openTplForm()">${icon('plus',14)} Create First Template</button>` : ''}
+        <p>Build templates by picking clauses from your Clause Library, then add questionnaire fields for dynamic data.</p>
+        ${canEdit ? `
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          ${!allClauses.length ? `<button class="btn btn-outline btn-sm" onclick="App.go('clauses')">${icon('book',14)} Build Clause Library First</button>` : ''}
+          <button class="btn btn-primary btn-sm" onclick="window._openTplForm()">${icon('plus',14)} Create Template</button>
+        </div>` : ''}
       </div>
     </div>` : `
     <div class="tpl-grid">
-      ${rows.map(t => {
-        const fieldCount = t.questionnaire_schema ? Object.keys(t.questionnaire_schema).length : 0;
-        return `
+      ${rows.map(t => `
         <div class="tpl-card">
           <div class="tpl-card-top">
             <div class="tpl-card-cat">${icon('tag',11)} ${esc(t.category)}</div>
             <div class="tpl-card-name">${esc(t.name)}</div>
             ${t.name_ar ? `<div class="tpl-card-name-ar">${esc(t.name_ar)}</div>` : ''}
             <div class="tpl-card-meta">
-              <span>${icon('list',11)} ${fieldCount} field${fieldCount !== 1 ? 's' : ''}</span>
+              <span>${icon('book',11)} ${t.clause_count||0} clause${t.clause_count!=1?'s':''}</span>
               <span>${icon('globe',11)} ${esc(t.language).toUpperCase()}</span>
               <span>${icon('clock',11)} v${t.version}</span>
             </div>
@@ -1012,19 +1214,18 @@ Pages.templates = async function() {
             <button class="btn btn-gold btn-sm" onclick="App.go('contracts/new')">${icon('zap',13)} Use</button>
             ${canEdit ? `<div style="display:flex;gap:4px">
               <button class="btn btn-outline btn-sm" onclick="window._openTplForm(${t.id})">${icon('edit',13)} Edit</button>
-              <button class="btn btn-ghost btn-icon btn-sm" onclick="window._delTpl(${t.id},this)" title="Delete">${icon('trash',13)}</button>
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="window._delTpl(${t.id},this)">${icon('trash',13)}</button>
             </div>` : ''}
           </div>
-        </div>`;
-      }).join('')}
+        </div>`).join('')}
     </div>`}`);
 
   window._delTpl = async function(id, btn) {
-    if (!confirm('Delete this template? This cannot be undone.')) return;
+    if (!confirm('Delete this template?')) return;
     btn.disabled = true;
     const d = await API.templates.delete(id);
-    if (d.success) { toast('Template deleted', 'success'); Pages.templates(); }
-    else { toast(d.message, 'error'); btn.disabled = false; }
+    if (d.success) { toast('Template deleted','success'); Pages.templates(); }
+    else { toast(d.message,'error'); btn.disabled = false; }
   };
 
   window._openTplForm = async function(id) {
@@ -1035,14 +1236,23 @@ Pages.templates = async function() {
       hideLoading();
       if (d.success) tpl = d.data;
     }
-    const schema = tpl.questionnaire_schema || {};
-    const fields = Object.entries(schema);
+    const schema        = tpl.questionnaire_schema || {};
+    const fields        = Object.entries(schema);
+    const selectedIds   = new Set((tpl.clauses||[]).map(c => c.id));
+    const orderedClauses= (tpl.clauses||[]).slice(); // already ordered from server
+    const available     = (window._allClauses||[]);
 
-    const modalBody = `
+    // Group available clauses by category
+    const byCat = {};
+    available.forEach(c => { (byCat[c.category] = byCat[c.category]||[]).push(c); });
+
+    showModal(
+      id ? 'Edit Template' : 'New Template',
+      `<!-- Basic Info -->
       <div class="form-row">
         <div class="form-group" style="flex:2">
           <label>Name (English) *</label>
-          <input id="tf-name" class="form-control" value="${esc(tpl.name||'')}" placeholder="e.g. NDA Agreement" required>
+          <input id="tf-name" class="form-control" value="${esc(tpl.name||'')}" placeholder="e.g. NDA Agreement">
         </div>
         <div class="form-group" style="flex:1">
           <label>Language</label>
@@ -1056,7 +1266,7 @@ Pages.templates = async function() {
       <div class="form-row">
         <div class="form-group">
           <label>Name (Arabic)</label>
-          <input id="tf-name-ar" class="form-control rtl-input" dir="rtl" value="${esc(tpl.name_ar||'')}" placeholder="الاسم بالعربية">
+          <input id="tf-name-ar" class="form-control rtl-input" dir="rtl" value="${esc(tpl.name_ar||'')}">
         </div>
         <div class="form-group">
           <label>Category *</label>
@@ -1068,10 +1278,63 @@ Pages.templates = async function() {
           </datalist>
         </div>
       </div>
-      <div class="form-group">
-        <label>AI Instructions <span class="text-muted fw-500" style="text-transform:none;letter-spacing:0">(optional)</span></label>
-        <textarea id="tf-ai" class="form-control" rows="2" placeholder="e.g. Always apply UAE law. Favour the first party.">${esc(tpl.ai_prompt||'')}</textarea>
+
+      <!-- Clause Picker -->
+      <div style="border:1.5px solid var(--slate-xl);border-radius:10px;overflow:hidden;margin-bottom:16px">
+        <div style="background:var(--surface);padding:10px 14px;border-bottom:1px solid var(--slate-xl);display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700;font-size:13px">${icon('book',14)} Clauses</div>
+          <span style="font-size:11px;color:var(--slate-l)">Check to include · drag to reorder</span>
+        </div>
+        <div style="display:flex;gap:0;min-height:220px">
+          <!-- Left: available clauses by category -->
+          <div style="flex:1;border-right:1px solid var(--slate-xl);overflow-y:auto;max-height:320px">
+            <div style="padding:8px 10px;border-bottom:1px solid var(--surface-1)">
+              <input id="clause-picker-search" class="form-control" style="font-size:12px;padding:5px 9px"
+                placeholder="Search clauses…" oninput="window._pickerFilter(this.value)">
+            </div>
+            ${!available.length
+              ? `<div style="padding:20px;text-align:center;color:var(--slate-l);font-size:12px">
+                   No clauses in library yet.<br>
+                   <a href="#/clauses" onclick="closeModal()" style="color:var(--ink);font-weight:600">Add clauses first →</a>
+                 </div>`
+              : Object.entries(byCat).map(([cat, cs]) => `
+                <div class="picker-group" data-cat="${esc(cat.toLowerCase())}">
+                  <div style="padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--slate-l);background:var(--surface-1)">${esc(cat)}</div>
+                  ${cs.map(c => `
+                    <label class="picker-row" data-search="${esc(c.title.toLowerCase())} ${esc((c.tags||'').toLowerCase())}"
+                      style="display:flex;align-items:center;gap:9px;padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--surface-1);font-size:12.5px;transition:background .12s"
+                      onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+                      <input type="checkbox" class="clause-pick-cb" data-id="${c.id}" data-title="${esc(c.title)}"
+                        data-uid="${esc(c.clause_uid)}"
+                        ${selectedIds.has(c.id) ? 'checked' : ''}
+                        onchange="window._pickerToggle(this)">
+                      <span style="flex:1"><span class="fw-600">${esc(c.title)}</span><code style="font-size:10px;color:var(--slate-l);margin-left:6px">${esc(c.clause_uid)}</code></span>
+                    </label>`).join('')}
+                </div>`).join('')}
+          </div>
+
+          <!-- Right: selected clauses (ordered, draggable) -->
+          <div style="width:220px;display:flex;flex-direction:column">
+            <div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--slate);background:var(--surface-1);border-bottom:1px solid var(--slate-xl)">
+              SELECTED ORDER
+            </div>
+            <div id="selected-clauses" style="flex:1;overflow-y:auto;padding:6px">
+              ${orderedClauses.map((c,i) => window_clauseOrderItem ? '' : `
+                <div class="selected-clause-item" draggable="true" data-id="${c.id}"
+                  style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--white);border:1px solid var(--slate-xl);border-radius:6px;margin-bottom:4px;font-size:12px;cursor:grab">
+                  ${icon('menu',12)}
+                  <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title)}</span>
+                  <button type="button" onclick="window._pickerRemove(${c.id},this.closest('.selected-clause-item'))" style="background:none;border:none;color:var(--slate-l);cursor:pointer;padding:0;line-height:1">×</button>
+                </div>`).join('')}
+            </div>
+            <div style="padding:8px;border-top:1px solid var(--slate-xl);font-size:11px;color:var(--slate-l);text-align:center">
+              <span id="selected-count">${orderedClauses.length}</span> selected
+            </div>
+          </div>
+        </div>
       </div>
+
+      <!-- Questionnaire Fields -->
       <div style="border:1.5px solid var(--slate-xl);border-radius:10px;padding:14px;margin-bottom:16px;background:var(--surface)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div style="font-weight:700;font-size:13px;color:var(--ink)">Questionnaire Fields</div>
@@ -1085,28 +1348,103 @@ Pages.templates = async function() {
               <select class="form-control tf-ftype" style="max-width:110px;font-size:12px">
                 ${['text','textarea','date','number','select'].map(t=>`<option value="${t}"${type===t?' selected':''}>${t}</option>`).join('')}
               </select>
-              <code style="flex:1;font-size:11px;color:var(--slate-l);white-space:nowrap;overflow:hidden">{{${esc(k)}}}</code>
+              <code style="flex:1;font-size:11px;color:var(--slate-l)">{{${esc(k)}}}</code>
               <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="this.closest('.field-row').remove()">${icon('trash',13)}</button>
             </div>`;
           }).join('')}
         </div>
-        <div class="form-hint" style="margin-top:6px">Use <code style="background:var(--surface-1);padding:1px 5px;border-radius:4px;font-size:11px">{{field_key}}</code> placeholders in the contract body below</div>
+        <div class="form-hint" style="margin-top:6px">Use <code style="background:var(--surface-1);padding:1px 5px;border-radius:4px;font-size:11px">{{field_key}}</code> in clause bodies for dynamic content</div>
       </div>
-      <div class="form-group">
-        <label>Contract Body (HTML) *</label>
-        <textarea id="tf-body" class="form-control" rows="12"
-          style="font-family:ui-monospace,'Cascadia Code','Fira Code',monospace;font-size:12px;line-height:1.6"
-          placeholder="&lt;h1&gt;{{contract_title}}&lt;/h1&gt;&#10;&lt;h2&gt;1. Parties&lt;/h2&gt;&#10;&lt;p&gt;...">${esc(tpl.contract_body||'')}</textarea>
-      </div>`;
 
-    showModal(
-      id ? 'Edit Template' : 'New Template',
-      modalBody,
+      <!-- AI Prompt -->
+      <div class="form-group">
+        <label>AI Instructions <span class="form-hint" style="display:inline;text-transform:none;letter-spacing:0">optional</span></label>
+        <textarea id="tf-ai" class="form-control" rows="2" placeholder="e.g. Apply UAE law. Favour first party.">${esc(tpl.ai_prompt||'')}</textarea>
+      </div>`,
       `<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="window._saveTpl(${id||'null'})">
-         ${icon(id ? 'save' : 'plus', 14)} ${id ? 'Update' : 'Create'} Template
-       </button>`
+         ${icon(id?'save':'plus',14)} ${id ? 'Update' : 'Create'} Template
+       </button>`,
+      true  // wide modal
     );
+
+    // Populate selected order panel from checked boxes
+    window._refreshSelectedPanel();
+
+    // Setup drag-and-drop reorder in selected panel
+    window._initDragDrop();
+  };
+
+  window._pickerFilter = function(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.picker-row').forEach(row => {
+      row.style.display = (!q || row.dataset.search.includes(q)) ? '' : 'none';
+    });
+    document.querySelectorAll('.picker-group').forEach(g => {
+      const anyVisible = [...g.querySelectorAll('.picker-row')].some(r => r.style.display !== 'none');
+      g.style.display = anyVisible ? '' : 'none';
+    });
+  };
+
+  window._pickerToggle = function(cb) {
+    window._refreshSelectedPanel();
+  };
+
+  window._pickerRemove = function(id, el) {
+    // Uncheck the matching checkbox
+    const cb = document.querySelector('.clause-pick-cb[data-id="'+id+'"]');
+    if (cb) cb.checked = false;
+    el.remove();
+    window._updateSelectedCount();
+  };
+
+  window._refreshSelectedPanel = function() {
+    const panel    = document.getElementById('selected-clauses');
+    if (!panel) return;
+    // Collect currently checked, preserving existing order
+    const existing = [...panel.querySelectorAll('.selected-clause-item')].map(el => el.dataset.id);
+    const checked  = new Set([...document.querySelectorAll('.clause-pick-cb:checked')].map(cb => String(cb.dataset.id)));
+    // Remove unchecked from panel
+    panel.querySelectorAll('.selected-clause-item').forEach(el => {
+      if (!checked.has(el.dataset.id)) el.remove();
+    });
+    // Add newly checked (not already in panel)
+    const inPanel = new Set([...panel.querySelectorAll('.selected-clause-item')].map(el => el.dataset.id));
+    document.querySelectorAll('.clause-pick-cb:checked').forEach(cb => {
+      if (!inPanel.has(cb.dataset.id)) {
+        const div = document.createElement('div');
+        div.className = 'selected-clause-item';
+        div.draggable = true;
+        div.dataset.id = cb.dataset.id;
+        div.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--white);border:1px solid var(--slate-xl);border-radius:6px;margin-bottom:4px;font-size:12px;cursor:grab';
+        div.innerHTML = icon('menu',12) +
+          '<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(cb.dataset.title) + '</span>' +
+          '<button type="button" onclick="window._pickerRemove(' + cb.dataset.id + ',this.closest(\'.selected-clause-item\'))" style="background:none;border:none;color:var(--slate-l);cursor:pointer;padding:0;line-height:1">×</button>';
+        panel.appendChild(div);
+        window._initDragDrop();
+      }
+    });
+    window._updateSelectedCount();
+  };
+
+  window._updateSelectedCount = function() {
+    const el = document.getElementById('selected-count');
+    if (el) el.textContent = document.querySelectorAll('.selected-clause-item').length;
+  };
+
+  window._initDragDrop = function() {
+    const panel = document.getElementById('selected-clauses');
+    if (!panel) return;
+    let dragged = null;
+    panel.querySelectorAll('.selected-clause-item').forEach(item => {
+      item.ondragstart = e => { dragged = item; item.style.opacity = '.4'; };
+      item.ondragend   = e => { item.style.opacity = '1'; dragged = null; };
+      item.ondragover  = e => { e.preventDefault(); };
+      item.ondrop      = e => {
+        e.preventDefault();
+        if (dragged && dragged !== item) panel.insertBefore(dragged, item);
+      };
+    });
   };
 
   window._addTplField = function() {
@@ -1119,12 +1457,15 @@ Pages.templates = async function() {
       <select class="form-control tf-ftype" style="max-width:110px;font-size:12px">
         ${['text','textarea','date','number','select'].map(t=>`<option value="${t}">${t}</option>`).join('')}
       </select>
-      <code style="flex:1;font-size:11px;color:var(--slate-l);white-space:nowrap;overflow:hidden">{{field_${n}}}</code>
+      <code style="flex:1;font-size:11px;color:var(--slate-l)">{{field_${n}}}</code>
       <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="this.closest('.field-row').remove()">${icon('trash',13)}</button>`;
     document.getElementById('tf-fields').appendChild(row);
   };
 
   window._saveTpl = async function(id) {
+    // Collect ordered clause IDs from selected panel
+    const clauseIds = [...document.querySelectorAll('.selected-clause-item')].map(el => parseInt(el.dataset.id));
+    // Collect questionnaire schema
     const schema = {};
     document.querySelectorAll('.field-row').forEach(row => {
       const k = row.querySelector('.tf-fkey')?.value.trim().replace(/\W+/g,'_');
@@ -1138,17 +1479,15 @@ Pages.templates = async function() {
       language:             document.getElementById('tf-lang').value,
       ai_prompt:            document.getElementById('tf-ai').value,
       questionnaire_schema: schema,
-      contract_body:        document.getElementById('tf-body').value,
+      clause_ids:           clauseIds,
+      contract_body:        '', // assembled server-side from clauses
     };
-    const d = id ? await API.templates.update(id, data) : await API.templates.create(data);
-    if (d.success) {
-      toast(id ? 'Template updated' : 'Template created', 'success');
-      closeModal();
-      Pages.templates();
-    } else {
-      if (d.errors) showErrors(d.errors);
-      else toast(d.message || 'Save failed', 'error');
+    if (!clauseIds.length && !data.contract_body) {
+      toast('Select at least one clause', 'error'); return;
     }
+    const d = id ? await API.templates.update(id, data) : await API.templates.create(data);
+    if (d.success) { toast(id ? 'Template updated' : 'Template created','success'); closeModal(); Pages.templates(); }
+    else { if (d.errors) showErrors(d.errors); else toast(d.message||'Save failed','error'); }
   };
 };
 
@@ -1501,6 +1840,7 @@ function renderShell(user) {
   const navItems = [
     { r:'dashboard',      l:'Dashboard',      i:'grid',    section: 'workspace' },
     { r:'contracts',      l:'Contracts',      i:'file',    section: 'workspace' },
+    { r:'clauses',        l:'Clause Library', i:'book',    section: 'workspace' },
     { r:'templates',      l:'Templates',      i:'layout',  section: 'workspace' },
     { r:'counterparties', l:'Counterparties', i:'users',   section: 'workspace' },
     { r:'team',           l:'Team',           i:'users',   section: 'manage'    },
@@ -1601,6 +1941,7 @@ const ROUTES = {
   'contracts':      Pages.contracts,
   'contracts/new':  Pages.contractWizard,
   'contract':       Pages.contractEditor,
+  'clauses':        Pages.clauses,
   'templates':      Pages.templates,
   'counterparties': Pages.counterparties,
   'team':           Pages.team,

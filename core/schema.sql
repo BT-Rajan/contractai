@@ -216,3 +216,40 @@ INSERT IGNORE INTO plans (id, name, billing_cycle, price_usd, max_users, max_con
 -- That page uses PHP's own password_hash() on your server and creates:
 --   Email:    admin@cogzidel.com
 --   Password: admin123
+
+-- ── Clause Library (added for clause-based template workflow) ──
+
+CREATE TABLE IF NOT EXISTS clauses (
+    id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tenant_id    INT UNSIGNED NOT NULL,
+    clause_uid   VARCHAR(20)  NOT NULL,          -- e.g. CL-0001, unique per tenant
+    title        VARCHAR(500) NOT NULL,
+    title_ar     VARCHAR(500) NULL,
+    category     VARCHAR(100) DEFAULT 'General',
+    body_html    LONGTEXT     NOT NULL,
+    body_html_ar LONGTEXT     NULL,
+    tags         VARCHAR(500) NULL,              -- comma-separated
+    is_active    TINYINT(1)   DEFAULT 1,
+    version      SMALLINT UNSIGNED DEFAULT 1,
+    created_by   INT UNSIGNED NOT NULL,
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_uid_tenant (clause_uid, tenant_id),
+    FOREIGN KEY (tenant_id)  REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    INDEX idx_tenant_cat (tenant_id, category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS template_clauses (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    template_id INT UNSIGNED NOT NULL,
+    clause_id   INT UNSIGNED NOT NULL,
+    sort_order  SMALLINT UNSIGNED DEFAULT 0,
+    UNIQUE KEY uq_tpl_clause (template_id, clause_id),
+    FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+    FOREIGN KEY (clause_id)   REFERENCES clauses(id)   ON DELETE CASCADE,
+    INDEX idx_template (template_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Migration: add clause_ids column to templates for ordered clause list
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS clause_ids TEXT NULL COMMENT 'JSON array of ordered clause IDs';

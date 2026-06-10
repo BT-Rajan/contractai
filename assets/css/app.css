@@ -601,3 +601,20 @@ tbody tr:hover td { background: var(--surface); }
 .color-input { width: 48px; height: 36px; padding: 2px; border-radius: var(--radius-sm); cursor: pointer; }
 .rtl-input  { direction: rtl; text-align: right; }
 .divider { height: 1px; background: var(--surface-1); margin: 16px 0; }
+
+/* ── Clause Library & Picker ─────────────────────────────────── */
+.clause-pick-cb {
+  width: 15px; height: 15px; cursor: pointer; accent-color: var(--ink-soft);
+  flex-shrink: 0;
+}
+.picker-row:has(.clause-pick-cb:checked) {
+  background: rgba(201,168,76,.06) !important;
+}
+.picker-row:has(.clause-pick-cb:checked) .fw-600 {
+  color: var(--ink);
+}
+.selected-clause-item:active { cursor: grabbing; }
+.selected-clause-item:hover  { border-color: var(--ink-muted) !important; }
+
+/* Modal wider for template + clause picker */
+.modal-box.wide { max-width: 820px; }

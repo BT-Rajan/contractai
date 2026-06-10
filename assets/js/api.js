@@ -173,6 +173,15 @@ const API = (() => {
     delete : (id)     => post(`templates.php?id=${id}`, { _method: 'DELETE' }),
   };
 
+  // ── Clauses ───────────────────────────────────────────────────
+  const clauses = {
+    list   : (p = {}) => get('clauses.php?' + new URLSearchParams(p)),
+    get    : (id)     => get(`clauses.php?id=${id}`),
+    create : (data)   => post('clauses.php', data),
+    update : (id, d)  => post(`clauses.php?id=${id}`, { ...d, _method: 'PUT' }),
+    delete : (id)     => post(`clauses.php?id=${id}`, { _method: 'DELETE' }),
+  };
+
   // ── Counterparties ────────────────────────────────────────────
   const counterparties = {
     list   : (p = {}) => get('counterparties.php?' + new URLSearchParams(p)),
@@ -195,6 +204,6 @@ const API = (() => {
     uploadLogo   : (fd)   => post('users.php?action=upload_logo', fd),
   };
 
-  return { BASE, store, auth, contracts, templates, counterparties, users };
+  return { BASE, store, auth, contracts, templates, clauses, counterparties, users };
 
 })();
