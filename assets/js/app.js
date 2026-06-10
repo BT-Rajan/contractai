@@ -974,71 +974,82 @@ Pages.clauses = async function() {
   setTitle('Clause Library'); showLoading();
   const d = await API.clauses.list({ per_page: 200 });
   hideLoading();
-  const rows = d.data?.data || [];
-  const cats = d.data?.categories || [];
-  const me   = API.store.user;
+  const rows    = d.data?.data       || [];
+  const cats    = d.data?.categories || [];
+  const me      = API.store.user;
   const canEdit = me && (me.role === 'owner' || me.role === 'admin');
+
+  window._clauseData = rows;
+  window._clauseCats = cats;
 
   setPage(`
     <div class="page-header">
       <div class="page-header-left">
         <h2>Clause Library</h2>
-        <p>${rows.length} clause${rows.length !== 1 ? 's' : ''} available</p>
+        <p>${rows.length} clause${rows.length !== 1 ? 's' : ''} across ${cats.length} categor${cats.length !== 1 ? 'ies' : 'y'}</p>
       </div>
-      ${canEdit ? `<button class="btn btn-primary" onclick="window._openClauseForm()">${icon('plus',15)} New Clause</button>` : ''}
+      <div style="display:flex;gap:8px">
+        ${canEdit ? `
+        <button class="btn btn-outline" onclick="window._manageCategories()">${icon('tag',14)} Categories</button>
+        <button class="btn btn-primary" onclick="window._openClauseForm()">${icon('plus',15)} New Clause</button>` : ''}
+      </div>
     </div>
 
-    <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px">
-      <input id="clause-search" class="form-control" placeholder="Search clauses…" style="max-width:280px"
-        oninput="window._filterClauses(this.value)">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+      <input id="clause-search" class="form-control" placeholder="Search title, tags, ID…"
+        style="max-width:260px" oninput="window._filterClauses()">
       <select id="clause-cat-filter" class="form-control" style="max-width:180px"
-        onchange="window._filterClauses(document.getElementById('clause-search').value)">
+        onchange="window._filterClauses()">
         <option value="">All Categories</option>
         ${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
       </select>
+      <span id="clause-count" style="font-size:12px;color:var(--slate-l)">${rows.length} clauses</span>
     </div>
 
     ${!rows.length ? `
-    <div class="card">
-      <div class="empty">
-        <div class="empty-icon">📚</div>
-        <h3>No clauses yet</h3>
-        <p>Build your clause library. Each clause gets a unique ID and can be reused across multiple templates.</p>
-        ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="window._openClauseForm()">${icon('plus',14)} Add First Clause</button>` : ''}
-      </div>
-    </div>` : `
+    <div class="card"><div class="empty">
+      <div class="empty-icon">📚</div>
+      <h3>No clauses yet</h3>
+      <p>Build your reusable clause library. Each clause gets a unique ID (CL-0001) and can be combined into templates.</p>
+      ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="window._openClauseForm()">${icon('plus',14)} Add First Clause</button>` : ''}
+    </div></div>` : `
     <div class="card">
       <div class="table-wrap">
         <table id="clause-table">
-          <thead>
-            <tr>
-              <th style="width:100px">ID</th>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Tags</th>
-              <th style="width:60px">Ver.</th>
-              <th style="width:120px">Actions</th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th style="width:95px">ID</th>
+            <th>Title</th>
+            <th style="width:140px">Category</th>
+            <th>Tags</th>
+            <th style="width:50px;text-align:center">Ver</th>
+            <th style="width:100px"></th>
+          </tr></thead>
           <tbody>
             ${rows.map(c => `
-            <tr data-title="${esc(c.title.toLowerCase())}" data-cat="${esc(c.category.toLowerCase())}" data-tags="${esc((c.tags||'').toLowerCase())}">
-              <td><code style="font-size:11px;background:var(--surface-1);padding:2px 7px;border-radius:4px;font-weight:600;color:var(--ink-muted)">${esc(c.clause_uid)}</code></td>
+            <tr data-title="${esc(c.title.toLowerCase())}"
+                data-cat="${esc(c.category.toLowerCase())}"
+                data-tags="${esc((c.tags||'').toLowerCase())}"
+                data-uid="${esc(c.clause_uid.toLowerCase())}">
               <td>
-                <div class="fw-600">${esc(c.title)}</div>
-                ${c.title_ar ? `<div style="font-size:11px;color:var(--slate-l);direction:rtl;text-align:right">${esc(c.title_ar)}</div>` : ''}
+                <code style="font-size:11px;background:var(--surface-1);padding:2px 8px;border-radius:5px;font-weight:700;color:var(--ink-muted);letter-spacing:.3px">${esc(c.clause_uid)}</code>
               </td>
-              <td><span class="badge badge-draft" style="font-size:10.5px">${esc(c.category)}</span></td>
+              <td>
+                <div class="fw-600" style="font-size:13.5px">${esc(c.title)}</div>
+                ${c.title_ar ? `<div style="font-size:11px;color:var(--slate-l);direction:rtl;text-align:right;margin-top:2px">${esc(c.title_ar)}</div>` : ''}
+              </td>
+              <td><span class="badge badge-draft">${esc(c.category)}</span></td>
               <td style="font-size:11.5px;color:var(--slate)">
-                ${(c.tags||'').split(',').filter(Boolean).map(t=>`<span style="background:var(--surface-1);padding:1px 7px;border-radius:4px;margin-right:3px">${esc(t.trim())}</span>`).join('')}
+                ${(c.tags||'').split(',').filter(Boolean).map(t =>
+                  `<span style="background:var(--surface-1);padding:1px 7px;border-radius:4px;margin-right:3px;white-space:nowrap">${esc(t.trim())}</span>`
+                ).join('')}
               </td>
-              <td style="color:var(--slate-l);font-size:12px">v${c.version}</td>
+              <td style="text-align:center;color:var(--slate-l);font-size:12px">v${c.version}</td>
               <td>
-                <div style="display:flex;gap:4px">
+                <div style="display:flex;gap:2px;justify-content:flex-end">
                   <button class="btn btn-ghost btn-icon btn-sm" onclick="window._previewClause(${c.id})" title="Preview">${icon('eye',13)}</button>
                   ${canEdit ? `
                   <button class="btn btn-ghost btn-icon btn-sm" onclick="window._openClauseForm(${c.id})" title="Edit">${icon('edit',13)}</button>
-                  <button class="btn btn-ghost btn-icon btn-sm" onclick="window._deleteClause(${c.id},this)" title="Delete" style="color:var(--slate)">${icon('trash',13)}</button>` : ''}
+                  <button class="btn btn-ghost btn-icon btn-sm" onclick="window._deleteClause(${c.id},this)" title="Delete" style="color:var(--slate-l)">${icon('trash',13)}</button>` : ''}
                 </div>
               </td>
             </tr>`).join('')}
@@ -1047,118 +1058,220 @@ Pages.clauses = async function() {
       </div>
     </div>`}`);
 
-  // Store clause data for picker reuse
-  window._clauseData = rows;
-
-  window._filterClauses = function(q) {
-    const cat = document.getElementById('clause-cat-filter')?.value.toLowerCase() || '';
-    q = q.toLowerCase();
+  window._filterClauses = function() {
+    const q   = (document.getElementById('clause-search')?.value || '').toLowerCase();
+    const cat = (document.getElementById('clause-cat-filter')?.value || '').toLowerCase();
+    let visible = 0;
     document.querySelectorAll('#clause-table tbody tr').forEach(tr => {
-      const matchQ   = !q   || tr.dataset.title.includes(q) || tr.dataset.tags.includes(q);
-      const matchCat = !cat || tr.dataset.cat === cat;
-      tr.style.display = (matchQ && matchCat) ? '' : 'none';
+      const ok = (!q   || tr.dataset.title.includes(q) || tr.dataset.tags.includes(q) || tr.dataset.uid.includes(q))
+              && (!cat || tr.dataset.cat === cat);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) visible++;
     });
-  };
-
-  window._previewClause = async function(id) {
-    const d = await API.clauses.get(id);
-    if (!d.success) { toast(d.message, 'error'); return; }
-    const c = d.data;
-    showModal(
-      `${c.clause_uid} — ${c.title}`,
-      `<div style="margin-bottom:10px">
-         <span class="badge badge-draft">${esc(c.category)}</span>
-         <span style="font-size:11px;color:var(--slate);margin-left:8px">v${c.version}</span>
-         ${c.tags ? `<span style="font-size:11px;color:var(--slate-l);margin-left:8px">${esc(c.tags)}</span>` : ''}
-       </div>
-       <div style="background:var(--surface);border-radius:8px;padding:16px;font-family:Georgia,serif;font-size:13px;line-height:1.8;max-height:400px;overflow-y:auto;border:1px solid var(--slate-xl)">
-         ${c.body_html}
-       </div>`,
-      `<button class="btn btn-outline" onclick="closeModal()">Close</button>`
-    );
-  };
-
-  window._deleteClause = async function(id, btn) {
-    if (!confirm('Delete this clause? It cannot be deleted if used in active templates.')) return;
-    btn.disabled = true;
-    const d = await API.clauses.delete(id);
-    if (d.success) { toast('Clause deleted', 'success'); Pages.clauses(); }
-    else { toast(d.message, 'error'); btn.disabled = false; }
-  };
-
-  window._openClauseForm = async function(id) {
-    let c = {};
-    if (id) {
-      showLoading();
-      const d = await API.clauses.get(id);
-      hideLoading();
-      if (d.success) c = d.data;
-    }
-    showModal(
-      id ? `Edit Clause — ${c.clause_uid}` : 'New Clause',
-      `<div class="form-row">
-        <div class="form-group" style="flex:2">
-          <label>Title (English) *</label>
-          <input id="cf-title" class="form-control" value="${esc(c.title||'')}" placeholder="e.g. Governing Law" required>
-        </div>
-        <div class="form-group" style="flex:1">
-          <label>Category *</label>
-          <input id="cf-cat" list="cf-catlist" class="form-control" value="${esc(c.category||'General')}">
-          <datalist id="cf-catlist">
-            <option>General</option><option>Definitions</option><option>Payment</option>
-            <option>Termination</option><option>Confidentiality</option><option>Liability</option>
-            <option>Governing Law</option><option>Dispute Resolution</option><option>IP Rights</option>
-          </datalist>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Title (Arabic)</label>
-        <input id="cf-title-ar" class="form-control rtl-input" dir="rtl" value="${esc(c.title_ar||'')}" placeholder="العنوان بالعربية">
-      </div>
-      <div class="form-group">
-        <label>Tags <span class="form-hint" style="display:inline">comma-separated</span></label>
-        <input id="cf-tags" class="form-control" value="${esc(c.tags||'')}" placeholder="nda, liability, uae">
-      </div>
-      <div class="form-group">
-        <label>Clause Body (HTML) *</label>
-        <div class="editor-toolbar" id="cf-toolbar">
-          ${['<b>B</b>','<i>I</i>','<u>U</u>'].map((l,i)=>`<button type="button" class="tb-btn" onclick="document.execCommand('${['bold','italic','underline'][i]}',false)">${l}</button>`).join('')}
-          <div class="tb-sep"></div>
-          ${[['H2','h2'],['H3','h3'],['P','p']].map(([l,t])=>`<button type="button" class="tb-btn" onclick="document.execCommand('formatBlock',false,'${t}')">${l}</button>`).join('')}
-          <div class="tb-sep"></div>
-          <button type="button" class="tb-btn" onclick="document.execCommand('insertUnorderedList',false)">• List</button>
-        </div>
-        <div id="cf-body" class="form-control editor-body"
-          style="min-height:200px;padding:14px 16px;font-family:Georgia,serif;font-size:13px;border-top:none;border-radius:0 0 8px 8px"
-          contenteditable="true">${c.body_html||''}</div>
-      </div>
-      <div class="form-group">
-        <label>Clause Body Arabic <span class="form-hint" style="display:inline">optional</span></label>
-        <div id="cf-body-ar" class="form-control editor-body rtl-input"
-          style="min-height:100px;padding:14px 16px;font-family:Cairo,serif;font-size:13px;direction:rtl"
-          contenteditable="true" dir="rtl">${c.body_html_ar||''}</div>
-      </div>`,
-      `<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="window._saveClause(${id||'null'})">
-         ${icon(id?'save':'plus',14)} ${id ? 'Update' : 'Create'} Clause
-       </button>`
-    );
-  };
-
-  window._saveClause = async function(id) {
-    const data = {
-      title:       document.getElementById('cf-title').value,
-      title_ar:    document.getElementById('cf-title-ar').value,
-      category:    document.getElementById('cf-cat').value,
-      tags:        document.getElementById('cf-tags').value,
-      body_html:   document.getElementById('cf-body').innerHTML,
-      body_html_ar:document.getElementById('cf-body-ar').innerHTML,
-    };
-    const d = id ? await API.clauses.update(id, data) : await API.clauses.create(data);
-    if (d.success) { toast(id ? 'Clause updated' : 'Clause created', 'success'); closeModal(); Pages.clauses(); }
-    else { if (d.errors) showErrors(d.errors); else toast(d.message||'Save failed','error'); }
+    const cnt = document.getElementById('clause-count');
+    if (cnt) cnt.textContent = visible + ' clause' + (visible !== 1 ? 's' : '');
   };
 };
+
+// ── CLAUSE CRUD — module-level so always available ─────────────
+window._previewClause = async function(id) {
+  const d = await API.clauses.get(id);
+  if (!d.success) { toast(d.message, 'error'); return; }
+  const c = d.data;
+  showModal(
+    `${c.clause_uid} — ${c.title}`,
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+       <span class="badge badge-draft">${esc(c.category)}</span>
+       <span style="font-size:11px;color:var(--slate-l)">v${c.version}</span>
+       ${c.tags ? `<span style="font-size:11.5px;color:var(--slate)">${esc(c.tags)}</span>` : ''}
+     </div>
+     <div style="background:var(--surface);border-radius:8px;padding:18px 20px;font-family:Georgia,serif;font-size:13.5px;line-height:1.9;max-height:420px;overflow-y:auto;border:1px solid var(--slate-xl)">
+       ${c.body_html}
+     </div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Close</button>`
+  );
+};
+
+window._deleteClause = async function(id, btn) {
+  if (!confirm('Delete this clause?\nNote: clauses used in active templates cannot be deleted.')) return;
+  btn.disabled = true;
+  const d = await API.clauses.delete(id);
+  if (d.success) { toast('Clause deleted', 'success'); Pages.clauses(); }
+  else { toast(d.message, 'error'); btn.disabled = false; }
+};
+
+window._manageCategories = function() {
+  const cats  = window._clauseCats || [];
+  showModal(
+    'Manage Categories',
+    `<p style="font-size:13px;color:var(--slate);margin-bottom:14px">
+       Categories group clauses in the library and clause picker. Add new ones here or rename by editing a clause.
+     </p>
+     <div id="cat-list" style="margin-bottom:12px">
+       ${cats.map(c => `
+         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+           <span class="badge badge-draft" style="flex:1;justify-content:flex-start;font-size:12px;padding:4px 10px">${esc(c)}</span>
+           <span style="font-size:11px;color:var(--slate-l)">${(window._clauseData||[]).filter(cl=>cl.category===c).length} clause(s)</span>
+         </div>`).join('')}
+       ${!cats.length ? '<p style="font-size:13px;color:var(--slate-l)">No categories yet. They are created automatically when you save a clause with a new category name.</p>' : ''}
+     </div>
+     <div class="divider"></div>
+     <p style="font-size:12px;color:var(--slate);margin-top:8px">
+       ${icon('info',13)} Categories are managed through clauses — set the category when creating or editing a clause. Common categories are suggested automatically.
+     </p>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Close</button>
+     <button class="btn btn-primary" onclick="closeModal();window._openClauseForm()">${icon('plus',14)} New Clause</button>`
+  );
+};
+
+window._openClauseForm = async function(id) {
+  let c = {};
+  if (id) {
+    showLoading();
+    const d = await API.clauses.get(id);
+    hideLoading();
+    if (!d.success) { toast(d.message, 'error'); return; }
+    c = d.data;
+  }
+
+  const cats = window._clauseCats || [
+    'General','Definitions','Payment','Termination','Confidentiality',
+    'Liability','Governing Law','Dispute Resolution','IP Rights',
+  ];
+
+  showModal(
+    id ? `Edit — ${c.clause_uid}` : 'New Clause',
+    `<!-- Title row -->
+     <div class="form-row">
+       <div class="form-group" style="flex:2">
+         <label>Title (English) *</label>
+         <input id="cf-title" class="form-control" value="${esc(c.title||'')}" placeholder="e.g. Governing Law">
+         <div class="form-error" id="cf-title-err" style="display:none"></div>
+       </div>
+       <div class="form-group" style="flex:1">
+         <label>Category *</label>
+         <input id="cf-cat" list="cf-catlist" class="form-control" value="${esc(c.category||'General')}" placeholder="Type or pick">
+         <datalist id="cf-catlist">
+           ${cats.map(cat => `<option value="${esc(cat)}">`).join('')}
+           <option value="General"><option value="Definitions"><option value="Payment">
+           <option value="Termination"><option value="Confidentiality"><option value="Liability">
+           <option value="Governing Law"><option value="Dispute Resolution"><option value="IP Rights">
+           <option value="Warranties"><option value="Indemnification"><option value="Force Majeure">
+         </datalist>
+         <div class="form-hint">Type a new name to create a category</div>
+         <div class="form-error" id="cf-cat-err" style="display:none"></div>
+       </div>
+     </div>
+     <!-- Arabic title -->
+     <div class="form-group">
+       <label>Title (Arabic) <span class="form-hint" style="display:inline;text-transform:none;letter-spacing:0">optional</span></label>
+       <input id="cf-title-ar" class="form-control rtl-input" dir="rtl" value="${esc(c.title_ar||'')}" placeholder="العنوان بالعربية">
+     </div>
+     <!-- Tags -->
+     <div class="form-group">
+       <label>Tags <span class="form-hint" style="display:inline;text-transform:none;letter-spacing:0">comma-separated, used for search</span></label>
+       <input id="cf-tags" class="form-control" value="${esc(c.tags||'')}" placeholder="nda, liability, uae">
+     </div>
+     <!-- Body EN -->
+     <div class="form-group">
+       <label>Clause Body *</label>
+       <div class="editor-wrap">
+         <div class="editor-toolbar">
+           ${[['B','bold'],['I','italic'],['U','underline']].map(([l,cmd])=>`<button type="button" class="tb-btn" onclick="document.execCommand('${cmd}',false)"><${l==='B'?'b':l==='I'?'i':'u'}>${l}</${l==='B'?'b':l==='I'?'i':'u'}></button>`).join('')}
+           <div class="tb-sep"></div>
+           ${[['H2','h2'],['H3','h3'],['P','p']].map(([l,t])=>`<button type="button" class="tb-btn" onclick="document.execCommand('formatBlock',false,'${t}')">${l}</button>`).join('')}
+           <div class="tb-sep"></div>
+           <button type="button" class="tb-btn" onclick="document.execCommand('insertUnorderedList',false)">• List</button>
+           <button type="button" class="tb-btn" onclick="document.execCommand('insertOrderedList',false)">1. List</button>
+         </div>
+         <div id="cf-body" class="editor-body" style="min-height:180px;padding:14px 18px"
+           contenteditable="true">${c.body_html||''}</div>
+       </div>
+       <div class="form-error" id="cf-body-err" style="display:none"></div>
+     </div>
+     <!-- Body AR -->
+     <div class="form-group">
+       <label>Clause Body Arabic <span class="form-hint" style="display:inline;text-transform:none;letter-spacing:0">optional</span></label>
+       <div id="cf-body-ar" class="form-control editor-body rtl-input"
+         style="min-height:90px;padding:12px 16px;font-family:Cairo,serif;font-size:13px;direction:rtl"
+         contenteditable="true" dir="rtl">${c.body_html_ar||''}</div>
+     </div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+     <button class="btn btn-primary" id="cf-save-btn" onclick="window._saveClause(${id||'null'})">
+       ${icon(id?'save':'plus',14)} ${id ? 'Update' : 'Create'} Clause
+     </button>`
+  );
+};
+
+window._saveClause = async function(id) {
+  // Client-side validation with visible feedback
+  const titleEl   = document.getElementById('cf-title');
+  const catEl     = document.getElementById('cf-cat');
+  const bodyEl    = document.getElementById('cf-body');
+  const titleErr  = document.getElementById('cf-title-err');
+  const catErr    = document.getElementById('cf-cat-err');
+  const bodyErr   = document.getElementById('cf-body-err');
+  const saveBtn   = document.getElementById('cf-save-btn');
+
+  // Reset errors
+  [titleErr, catErr, bodyErr].forEach(el => { el.style.display='none'; el.textContent=''; });
+  [titleEl, catEl, bodyEl].forEach(el => el.classList.remove('error'));
+
+  const title    = titleEl.value.trim();
+  const category = catEl.value.trim();
+  const bodyHtml = bodyEl.innerHTML.replace(/<br\s*\/?>/gi,'').trim();
+
+  let valid = true;
+  if (!title) {
+    titleErr.textContent = 'Title is required'; titleErr.style.display='block';
+    titleEl.classList.add('error'); titleEl.focus(); valid = false;
+  }
+  if (!category) {
+    catErr.textContent = 'Category is required'; catErr.style.display='block';
+    catEl.classList.add('error'); valid = false;
+  }
+  if (!bodyHtml || bodyHtml === '<br>' || bodyHtml.length < 5) {
+    bodyErr.textContent = 'Clause body is required (min 5 characters)'; bodyErr.style.display='block';
+    bodyEl.classList.add('error'); valid = false;
+  }
+  if (!valid) return;
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = id ? 'Updating…' : 'Creating…';
+
+  const data = {
+    title,
+    title_ar:     document.getElementById('cf-title-ar').value.trim(),
+    category,
+    tags:         document.getElementById('cf-tags').value.trim(),
+    body_html:    bodyHtml,
+    body_html_ar: document.getElementById('cf-body-ar').innerHTML.replace(/<br\s*\/?>/gi,'').trim(),
+  };
+
+  const d = id ? await API.clauses.update(id, data) : await API.clauses.create(data);
+  if (d.success) {
+    toast(id ? 'Clause updated' : `Clause ${d.data?.clause_uid||''} created`, 'success');
+    closeModal();
+    Pages.clauses();
+  } else {
+    saveBtn.disabled = false;
+    saveBtn.textContent = id ? 'Update Clause' : 'Create Clause';
+    if (d.errors) {
+      // Map server field names to our element IDs
+      const map = { title: 'cf-title-err', category: 'cf-cat-err', body_html: 'cf-body-err' };
+      Object.entries(d.errors).forEach(([f, msgs]) => {
+        const errId = map[f];
+        if (errId) {
+          const el = document.getElementById(errId);
+          if (el) { el.textContent = Array.isArray(msgs) ? msgs[0] : msgs; el.style.display='block'; }
+        }
+      });
+    } else {
+      toast(d.message || 'Save failed', 'error');
+    }
+  }
+};
+
 
 Pages.templates = async function() {
   setTitle('Templates'); showLoading();
