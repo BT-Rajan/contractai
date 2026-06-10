@@ -134,34 +134,33 @@ const API = (() => {
     delete   : (id)     => post(`contracts.php?id=${id}`, { _method: 'DELETE' }),
     pdfUrl      : (id, lang = 'en') => `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}`,
     pdfDownload : async (id, lang = 'en', filename = 'contract') => {
-      // Fetch via XHR so the Authorization header is sent — avoids the
-      // unauthenticated problem that occurs with plain <a href> navigation.
-      const url     = `${BASE}/api/contracts.php?action=pdf&id=${id}&lang=${lang}`;
-      const headers = { Accept: 'application/pdf' };
-      if (store.access) headers['Authorization'] = 'Bearer ' + store.access;
-      let res;
-      try {
-        res = await fetch(url, { headers });
-      } catch (e) {
-        return { success: false, message: 'Network error: ' + e.message };
-      }
-      const ct = res.headers.get('Content-Type') || '';
-      if (ct.includes('application/pdf')) {
+      // Use req() so auth headers, token refresh and error handling
+      // are all handled consistently with every other API call.
+      const res = await req(
+        `contracts.php?action=pdf&id=${id}&lang=${lang}`,
+        { method: 'GET', headers: { Accept: 'application/pdf' } }
+      );
+
+      // req() returns raw Response for non-JSON content types (line ~80 in req)
+      if (res instanceof Response) {
+        if (!res.ok) {
+          let msg = `HTTP ${res.status}`;
+          try { const e = await res.json(); msg = e.message || msg; } catch {}
+          console.error('[PDF] Server error:', res.status);
+          return { success: false, message: msg };
+        }
         const blob = await res.blob();
         const a    = document.createElement('a');
         a.href     = URL.createObjectURL(blob);
-        a.download = `${filename}_${lang}.pdf`;
-        document.body.appendChild(a);
-        a.click();
+        a.download = `${filename.replace(/[^a-z0-9_\-]/gi,'_')}_${lang}.pdf`;
+        document.body.appendChild(a); a.click();
         setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
         return { success: true };
       }
-      // Not a PDF — read the body text for the actual error message
-      const text = await res.text();
-      let msg = `HTTP ${res.status}`;
-      try { msg = JSON.parse(text).message || msg; } catch { msg = text.substring(0, 200) || msg; }
-      console.error('[PDF] Server response:', text);
-      return { success: false, message: msg };
+
+      // res is already a parsed JSON error object (auth failure, 404, etc.)
+      console.error('[PDF] API error:', res);
+      return { success: false, message: res.message || 'PDF generation failed' };
     },
   };
 
