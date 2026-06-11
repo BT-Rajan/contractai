@@ -45,13 +45,23 @@ function action_dashboard(array $user): void {
     $tid = $user['tenant_id'];
 
     $stats = [
-        'total_contracts'      => db_count("SELECT COUNT(*) FROM contracts     WHERE tenant_id = ?",               [$tid]),
-        'draft_contracts'      => db_count("SELECT COUNT(*) FROM contracts     WHERE tenant_id = ? AND status='draft'", [$tid]),
-        'final_contracts'      => db_count("SELECT COUNT(*) FROM contracts     WHERE tenant_id = ? AND status='final'", [$tid]),
-        'total_counterparties' => db_count("SELECT COUNT(*) FROM counterparties WHERE tenant_id = ? AND is_active=1",  [$tid]),
-        'total_templates'      => db_count("SELECT COUNT(*) FROM templates     WHERE tenant_id = ? AND is_active=1",   [$tid]),
-        'total_users'          => db_count("SELECT COUNT(*) FROM users         WHERE tenant_id = ? AND is_active=1",   [$tid]),
+        'total_contracts'      => db_count("SELECT COUNT(*) FROM contracts      WHERE tenant_id = ?",                   [$tid]),
+        'draft_contracts'      => db_count("SELECT COUNT(*) FROM contracts      WHERE tenant_id = ? AND status='draft'", [$tid]),
+        'final_contracts'      => db_count("SELECT COUNT(*) FROM contracts      WHERE tenant_id = ? AND status='final'", [$tid]),
+        'total_counterparties' => db_count("SELECT COUNT(*) FROM counterparties WHERE tenant_id = ? AND is_active=1",    [$tid]),
+        'total_templates'      => db_count("SELECT COUNT(*) FROM templates      WHERE tenant_id = ? AND is_active=1",    [$tid]),
+        'total_users'          => db_count("SELECT COUNT(*) FROM users          WHERE tenant_id = ? AND is_active=1",    [$tid]),
+        'total_clauses'        => db_count("SELECT COUNT(*) FROM clauses        WHERE tenant_id = ? AND is_active=1",    [$tid]),
     ];
+
+    // Contract breakdown by type (top 6)
+    $byType = db_rows(
+        "SELECT contract_type, COUNT(*) AS cnt
+         FROM contracts WHERE tenant_id = ? AND contract_type IS NOT NULL
+         GROUP BY contract_type ORDER BY cnt DESC LIMIT 6",
+        [$tid]
+    );
+    $stats['by_type'] = $byType;
 
     $sub = db_row(
         "SELECT s.*, p.name AS plan_name, p.max_contracts, p.max_ai_calls, p.max_users
@@ -61,9 +71,12 @@ function action_dashboard(array $user): void {
     );
 
     $recent = db_rows(
-        "SELECT c.id, c.title, c.status, c.tone, c.created_at,
-                u.full_name AS created_by_name
-         FROM contracts c JOIN users u ON u.id = c.created_by
+        "SELECT c.id, c.title, c.status, c.tone, c.contract_type, c.party_1, c.party_2,
+                c.created_at, u.full_name AS created_by_name,
+                cp.company_name AS counterparty_name
+         FROM contracts c
+         JOIN users u ON u.id = c.created_by
+         LEFT JOIN counterparties cp ON cp.id = c.counterparty_id
          WHERE c.tenant_id = ?
          ORDER BY c.created_at DESC LIMIT 8",
         [$tid]

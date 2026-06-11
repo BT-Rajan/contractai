@@ -52,7 +52,10 @@ const API = (() => {
 
   async function req(path, opts = {}) {
     const url     = `${BASE}/api/${path}`;
-    const headers = { Accept: 'application/json' };
+    const headers = {
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',  // CSRF mitigation — custom headers blocked cross-origin
+    };
 
     if (!(opts.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
@@ -173,6 +176,11 @@ const API = (() => {
     delete : (id)     => post(`templates.php?id=${id}`, { _method: 'DELETE' }),
   };
 
+  // ── Search ────────────────────────────────────────────────────
+  const search = {
+    query: (q) => get('search.php?' + new URLSearchParams({ q })),
+  };
+
   // ── Clauses ───────────────────────────────────────────────────
   const clauses = {
     list   : (p = {}) => get('clauses.php?' + new URLSearchParams(p)),
@@ -204,6 +212,6 @@ const API = (() => {
     uploadLogo   : (fd)   => post('users.php?action=upload_logo', fd),
   };
 
-  return { BASE, store, auth, contracts, templates, clauses, counterparties, users };
+  return { BASE, store, auth, contracts, templates, clauses, search, counterparties, users };
 
 })();

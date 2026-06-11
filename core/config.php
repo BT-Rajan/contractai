@@ -25,13 +25,21 @@ define('DB_NAME', $_ENV['DB_NAME'] ?? 'contractai');
 define('DB_USER', $_ENV['DB_USER'] ?? 'root');
 define('DB_PASS', $_ENV['DB_PASS'] ?? '');
 
-define('JWT_SECRET',  $_ENV['JWT_SECRET']  ?? 'contractai_jwt_secret_key_2024_dev');
-define('JWT_TTL',     (int)($_ENV['JWT_TTL']     ?? 3600));
-define('JWT_REFRESH', (int)($_ENV['JWT_REFRESH'] ?? 604800));
+define('JWT_SECRET',   $_ENV['JWT_SECRET']   ?? 'contractai_jwt_secret_key_2024_dev');
+define('JWT_TTL',      (int)($_ENV['JWT_TTL']     ?? 3600));
+define('JWT_REFRESH',  (int)($_ENV['JWT_REFRESH'] ?? 604800));
 
-// Warn if JWT secret is still the insecure default
-if (JWT_SECRET === 'contractai_jwt_secret_key_2024_dev' && APP_DEBUG) {
+// ENCRYPT_KEY is deliberately separate from JWT_SECRET.
+// Rotating JWT_SECRET (e.g. after a leak) must not corrupt encrypted DB fields.
+// Generate with: openssl rand -hex 32
+define('ENCRYPT_KEY',  $_ENV['ENCRYPT_KEY']  ?? JWT_SECRET);
+
+// Warn if secrets are still insecure defaults
+if (JWT_SECRET  === 'contractai_jwt_secret_key_2024_dev' && APP_DEBUG) {
     error_log('[ContractAI] WARNING: JWT_SECRET is using the insecure default. Set a strong secret in .env');
+}
+if (ENCRYPT_KEY === JWT_SECRET && APP_ENV === 'production') {
+    error_log('[ContractAI] WARNING: ENCRYPT_KEY not set. Add a separate ENCRYPT_KEY to .env');
 }
 
 define('GEMINI_API_KEY', $_ENV['GEMINI_API_KEY'] ?? '');

@@ -22,6 +22,10 @@ match($action) {
 function auth_login(): void {
     if (method() !== 'POST') json_err('POST required', 405);
 
+    // Brute-force protection: 10 attempts per IP per 15 min, 5 per email per 15 min
+    rate_limit('login_ip:'   . ip(),                              10, 900);
+    rate_limit('login_email:' . strtolower(trim($_POST['email'] ?? (json_body()['email'] ?? ''))), 5, 900);
+
     $b     = json_body();
     $email = strtolower(trim($b['email'] ?? ''));
     $pass  = $b['password'] ?? '';
@@ -113,6 +117,9 @@ function auth_refresh(): void {
 function auth_register(): void {
     if (method() !== 'POST') json_err('POST required', 405);
 
+    // Limit registrations: 5 per IP per hour
+    rate_limit('register_ip:' . ip(), 5, 3600);
+
     $b = json_body();
     $errors = validate($b, [
         'company_name' => 'required|min:2|max:255',
@@ -147,7 +154,7 @@ function auth_register(): void {
                 [$userId, $token, date('Y-m-d H:i:s', strtotime('+24 hours'))]);
 
             $link = BASE_URL . '/api/auth.php?action=verify&token=' . $token;
-            log_info('VERIFY LINK', ['email' => $email, 'link' => $link]);
+            if (APP_DEBUG) log_info('VERIFY LINK', ['email' => $email, 'link' => $link]);
             @send_mail($email, 'Verify your ContractAI account', "Verify your email:\n{$link}\n\nExpires in 24 hours.");
 
             return ['user_id' => $userId, 'verify_link' => $link];
@@ -182,6 +189,10 @@ function auth_verify(): void {
 
 // ── FORGOT PASSWORD ───────────────────────────────────────────
 function auth_forgot(): void {
+    // Limit reset requests: 5 per IP per hour, 3 per email per hour
+    rate_limit('forgot_ip:'    . ip(),                            5, 3600);
+    rate_limit('forgot_email:' . strtolower(trim((json_body())['email'] ?? '')), 3, 3600);
+
     $b     = json_body();
     $email = strtolower(trim($b['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_err('Invalid email', 422);
@@ -193,7 +204,7 @@ function auth_forgot(): void {
         db_insert("INSERT INTO password_resets (email,token,expires_at) VALUES (?,?,?)",
             [$email, $token, date('Y-m-d H:i:s', strtotime('+1 hour'))]);
         $link = BASE_URL . '/index.html#/reset-password?token=' . $token;
-        log_info('RESET LINK', ['email' => $email, 'link' => $link]);
+        if (APP_DEBUG) log_info('RESET LINK', ['email' => $email, 'link' => $link]);
         @send_mail($email, 'Reset your ContractAI password', "Reset link:\n{$link}\n\nExpires in 1 hour.");
     }
     json_ok(null, 'If that email exists, a reset link has been sent.');
@@ -201,6 +212,9 @@ function auth_forgot(): void {
 
 // ── RESET PASSWORD ────────────────────────────────────────────
 function auth_reset(): void {
+    // Limit reset attempts: 10 per IP per hour
+    rate_limit('reset_ip:' . ip(), 10, 3600);
+
     $b     = json_body();
     $token = trim($b['token'] ?? '');
     if (!$token) json_err('Token required', 422);
@@ -244,11 +258,17 @@ function auth_setup(): void {
         json_err('Not available', 403);
     }
 
-    $email    = 'admin@cogzidel.com';
-    $password = 'admin123';
+    // Credentials come from .env — never hardcoded in source
+    // Set SETUP_EMAIL and SETUP_PASSWORD in .env before calling this endpoint
+    $email    = $_ENV['SETUP_EMAIL']    ?? null;
+    $password = $_ENV['SETUP_PASSWORD'] ?? null;
+    if (!$email || !$password) {
+        json_err('Set SETUP_EMAIL and SETUP_PASSWORD in .env before using setup', 400);
+    }
+    if (strlen($password) < 8) json_err('SETUP_PASSWORD must be at least 8 characters', 400);
 
     // Ensure tenant
-    $tenant = db_row("SELECT id FROM tenants WHERE slug='cogzidel' LIMIT 1");
+    $tenant = db_row("SELECT id FROM tenants WHERE slug=? LIMIT 1", [make_slug($email, 'tenants')]);
     if ($tenant) {
         $tenantId = (int)$tenant['id'];
     } else {

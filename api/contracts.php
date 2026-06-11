@@ -35,7 +35,8 @@ function contract_list(int $tid): void {
     $page    = max(1, (int)($_GET['page'] ?? 1));
     $perPage = min(100, (int)($_GET['per_page'] ?? 20));
     $status  = trim($_GET['status'] ?? '');
-    $q       = trim($_GET['q'] ?? '');
+    $type    = trim($_GET['type']   ?? '');
+    $q       = trim($_GET['q']      ?? '');
 
     $where  = 'c.tenant_id = ?';
     $params = [$tid];
@@ -44,12 +45,18 @@ function contract_list(int $tid): void {
         $where   .= ' AND c.status = ?';
         $params[] = $status;
     }
+    if ($type !== '') {
+        $where   .= ' AND c.contract_type = ?';
+        $params[] = $type;
+    }
     if ($q) {
-        $where   .= ' AND c.title LIKE ?';
-        $params[] = "%{$q}%";
+        $where   .= ' AND (c.title LIKE ? OR c.party_1 LIKE ? OR c.party_2 LIKE ?)';
+        $like     = "%{$q}%";
+        $params   = array_merge($params, [$like, $like, $like]);
     }
 
     $sql = "SELECT c.id, c.title, c.status, c.language, c.tone,
+                   c.contract_type, c.party_1, c.party_2,
                    c.created_at, c.finalized_at,
                    c.ai_tokens_in, c.ai_tokens_out,
                    u.full_name  AS created_by_name,
@@ -145,8 +152,9 @@ function contract_generate(array $user): void {
     $contractId = db_insert(
         "INSERT INTO contracts
          (tenant_id, template_id, counterparty_id, title, language, tone,
+          contract_type, party_1, party_2,
           questionnaire_data, generated_html, status, ai_tokens_in, ai_tokens_out, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)",
         [
             $tid,
             $templateId,
@@ -154,6 +162,9 @@ function contract_generate(array $user): void {
             trim($b['title']),
             $template['language'],
             $tone,
+            $template['category'] ?? null,
+            extract_party($answers, 1),
+            extract_party($answers, 2),
             json_encode($answers),
             $result['html'],
             $result['tokens_in'],
@@ -299,6 +310,21 @@ function pdf_stream(string $path, string $title): never {
 }
 
 // ── GEMINI ────────────────────────────────────────────────────
+/**
+ * Extract first or second party name from questionnaire answers.
+ * Looks for common field names: landlord, tenant, employer, employee,
+ * party_1, party_2, first_party, second_party, buyer, seller, etc.
+ */
+function extract_party(array $answers, int $n): ?string {
+    $keys1 = ['landlord','employer','party_1','first_party','buyer','licensor','franchisor','service_provider','client_name','company_name'];
+    $keys2 = ['tenant','employee','party_2','second_party','seller','licensee','franchisee','service_recipient','vendor','contractor'];
+    $keys  = $n === 1 ? $keys1 : $keys2;
+    foreach ($keys as $k) {
+        $v = trim($answers[$k] ?? $answers[strtoupper($k)] ?? '');
+        if ($v !== '') return $v;
+    }
+    return null;
+}
 function gemini_generate(array $tpl, array $answers, array $cp, string $tone, array $settings): array {
     if (!GEMINI_API_KEY) return ['error' => 'Gemini API key not configured. Add GEMINI_API_KEY to .env'];
 

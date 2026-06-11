@@ -147,6 +147,8 @@ const SVG = {
   save:     '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
   book:     '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
   check2:   '<polyline points="20 6 9 17 4 12"/>',
+  search:   '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  info:     '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
 };
 
 function icon(name, size) {
@@ -173,8 +175,79 @@ function setPage(html) {
   if (el) el.innerHTML = html;
 }
 
-// Global PDF download handler — uses fetch() with Authorization header so
-// the JWT is sent correctly. Plain <a href> can't attach headers.
+// ── Global Search ─────────────────────────────────────────────
+let _searchTimer = null;
+window._closeSearch = function() {
+  const r = document.getElementById('global-search-results');
+  if (r) r.style.display = 'none';
+};
+window._globalSearch = async function(q) {
+  clearTimeout(_searchTimer);
+  const panel = document.getElementById('global-search-results');
+  if (!panel) return;
+  if (q.length < 2) { panel.style.display = 'none'; return; }
+
+  panel.style.display = 'block';
+  panel.innerHTML = `<div style="padding:14px 16px;font-size:12.5px;color:var(--slate-l)">Searching…</div>`;
+
+  _searchTimer = setTimeout(async () => {
+    const d = await API.search.query(q);
+    if (!d.success) { panel.innerHTML = `<div style="padding:14px;font-size:12.5px;color:var(--red)">Search failed</div>`; return; }
+    const { contracts, counterparties, clauses, templates, total } = d.data;
+
+    if (total === 0) {
+      panel.innerHTML = `<div style="padding:20px 16px;text-align:center;color:var(--slate-l);font-size:13px">No results for <strong>${esc(q)}</strong></div>`;
+      return;
+    }
+
+    const section = (title, rows, renderRow) => !rows.length ? '' : `
+      <div style="padding:6px 14px 3px;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--slate-l);background:var(--surface-1)">${title}</div>
+      ${rows.map(renderRow).join('')}`;
+
+    const row = (onclick, left, right, sub='') => `
+      <div onclick="${onclick}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;cursor:pointer;transition:background .12s;border-bottom:.5px solid var(--surface-1)"
+        onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${left}</div>
+          ${sub ? `<div style="font-size:11.5px;color:var(--slate-l);margin-top:1px">${sub}</div>` : ''}
+        </div>
+        ${right ? `<div style="flex-shrink:0">${right}</div>` : ''}
+      </div>`;
+
+    panel.innerHTML =
+      section('Contracts', contracts, c =>
+        row(`App.go('contract',{id:${c.id}});window._closeSearch();document.getElementById('global-search-input').value=''`,
+          esc(c.title),
+          `<span class="badge badge-${esc(c.status)}" style="font-size:10.5px">${esc(c.status)}</span>`,
+          [c.contract_type, c.party_1, c.party_2].filter(Boolean).map(esc).join(' · ')
+        )
+      ) +
+      section('Counterparties', counterparties, c =>
+        row(`App.go('counterparties');window._closeSearch();document.getElementById('global-search-input').value=''`,
+          esc(c.company_name),
+          `<span style="font-size:11px;color:var(--slate)">${esc(c.country)}</span>`,
+          [c.signatory_title, c.email].filter(Boolean).map(esc).join(' · ')
+        )
+      ) +
+      section('Clauses', clauses, c =>
+        row(`App.go('clauses');window._closeSearch();document.getElementById('global-search-input').value=''`,
+          esc(c.title),
+          `<code style="font-size:10px;background:var(--surface-1);padding:1px 6px;border-radius:4px">${esc(c.clause_uid)}</code>`,
+          esc(c.category)
+        )
+      ) +
+      section('Templates', templates, t =>
+        row(`App.go('templates');window._closeSearch();document.getElementById('global-search-input').value=''`,
+          esc(t.name),
+          `<span style="font-size:11px;color:var(--slate)">${esc(t.language).toUpperCase()}</span>`,
+          esc(t.category)
+        )
+      ) +
+      `<div style="padding:8px 14px;font-size:11px;color:var(--slate-l);text-align:right">${total} result${total!==1?'s':''}</div>`;
+  }, 280);
+};
+
+
 window._downloadPdf = async function(id, lang, btn) {
   const orig = btn.innerHTML;
   btn.disabled = true;
@@ -479,9 +552,10 @@ Pages.dashboard = async function() {
   setTitle('Dashboard'); showLoading();
   const d = await API.users.dashboard();
   hideLoading();
-  if (!d.success) { setPage(`<p class="text-muted">Failed to load dashboard: ${esc(d.message)}</p>`); return; }
+  if (!d.success) { setPage(`<p class="text-muted">Failed: ${esc(d.message)}</p>`); return; }
 
   const { stats, sub, recent } = d.data;
+  const byType = stats.by_type || [];
 
   setPage(`
     <div class="page-header">
@@ -492,52 +566,91 @@ Pages.dashboard = async function() {
       <button class="btn btn-gold" onclick="App.go('contracts/new')">${icon('zap',15)} Generate Contract</button>
     </div>
 
+    <!-- Clickable stat cards -->
     <div class="stats-grid">
       ${[
-        { v: stats.total_contracts,      l: 'Total Contracts',  i: 'file',   c: 'navy'  },
-        { v: stats.draft_contracts,      l: 'In Draft',         i: 'edit',   c: 'gold'  },
-        { v: stats.final_contracts,      l: 'Finalised',        i: 'check',  c: 'green' },
-        { v: stats.total_counterparties, l: 'Counterparties',   i: 'users',  c: 'blue'  },
+        { v: stats.total_contracts,      l: 'Total Contracts',  i: 'file',   c: 'navy',  route: 'contracts'                    },
+        { v: stats.draft_contracts,      l: 'In Draft',         i: 'edit',   c: 'gold',  route: 'contracts', filter: 'draft'   },
+        { v: stats.final_contracts,      l: 'Finalised',        i: 'check',  c: 'green', route: 'contracts', filter: 'final'   },
+        { v: stats.total_counterparties, l: 'Counterparties',   i: 'users',  c: 'blue',  route: 'counterparties'               },
+        { v: stats.total_clauses,        l: 'Clauses',          i: 'book',   c: 'navy',  route: 'clauses'                      },
+        { v: stats.total_templates,      l: 'Templates',        i: 'layout', c: 'gold',  route: 'templates'                    },
       ].map(s => `
-        <div class="stat-card">
+        <div class="stat-card" style="cursor:pointer" role="button" tabindex="0"
+          onclick="App.go('${s.route}'${s.filter ? `,{status:'${s.filter}'}` : ''})"
+          onkeydown="if(event.key==='Enter')App.go('${s.route}'${s.filter ? `,{status:'${s.filter}'}` : ''})"
+          title="View ${s.l}">
           <div class="stat-icon ${s.c}">${icon(s.i, 22)}</div>
           <div>
             <div class="stat-val">${s.v}</div>
             <div class="stat-lbl">${s.l}</div>
           </div>
+          <div style="margin-left:auto;color:var(--slate-xl);transition:color .15s" class="stat-arrow">${icon('eye',14)}</div>
         </div>`).join('')}
     </div>
 
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
-      <div class="card" style="flex:1;min-width:280px">
-        <div class="card-hd">
-          Recent Contracts
-          <a href="#/contracts" style="font-size:12px;font-weight:500;color:var(--slate)">View all →</a>
+
+      <!-- Left column: recent contracts + type breakdown -->
+      <div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:14px">
+
+        <div class="card">
+          <div class="card-hd">
+            Recent Contracts
+            <a href="#/contracts" style="font-size:12px;font-weight:500;color:var(--slate)">View all →</a>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Title</th><th>Type</th><th>Parties</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                ${!recent || !recent.length
+                  ? `<tr><td colspan="5"><div class="empty">
+                      <div class="empty-icon">📄</div>
+                      <h3>No contracts yet</h3>
+                      <p>Generate your first AI-drafted contract in seconds</p>
+                      <button class="btn btn-primary btn-sm" onclick="App.go('contracts/new')">${icon('zap',14)} Get Started</button>
+                     </div></td></tr>`
+                  : recent.map(c => `
+                    <tr style="cursor:pointer" onclick="App.go('contract',{id:${c.id}})">
+                      <td class="fw-600" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.title)}</td>
+                      <td style="font-size:11.5px">
+                        ${c.contract_type ? `<span class="badge badge-draft">${esc(c.contract_type)}</span>` : '<span style="color:var(--slate-l)">—</span>'}
+                      </td>
+                      <td style="font-size:11.5px;color:var(--slate)">
+                        ${[c.party_1, c.party_2].filter(Boolean).map(p=>`<span>${esc(p)}</span>`).join(' <span style="color:var(--slate-xl)">·</span> ') || (c.counterparty_name ? esc(c.counterparty_name) : '—')}
+                      </td>
+                      <td><span class="badge badge-${esc(c.status)}">${esc(c.status)}</span></td>
+                      <td>${icon('eye', 13)}</td>
+                    </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Title</th><th>Status</th><th>Date</th><th></th></tr></thead>
-            <tbody>
-              ${!recent || !recent.length
-                ? `<tr><td colspan="4"><div class="empty">
-                    <div class="empty-icon">📄</div>
-                    <h3>No contracts yet</h3>
-                    <p>Generate your first AI-drafted contract in seconds</p>
-                    <button class="btn btn-primary btn-sm" onclick="App.go('contracts/new')">${icon('zap',14)} Get Started</button>
-                   </div></td></tr>`
-                : recent.map(c => `
-                  <tr style="cursor:pointer" onclick="App.go('contract',{id:${c.id}})">
-                    <td class="fw-600">${esc(c.title)}</td>
-                    <td><span class="badge badge-${esc(c.status)}">${esc(c.status)}</span></td>
-                    <td class="text-muted">${fmtDate(c.created_at)}</td>
-                    <td>${icon('eye', 14)}</td>
-                  </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
+
+        ${byType.length ? `
+        <div class="card">
+          <div class="card-hd">Contracts by Type</div>
+          <div class="card-body" style="padding:12px 16px">
+            ${byType.map(t => {
+              const pct = stats.total_contracts > 0 ? Math.round(t.cnt / stats.total_contracts * 100) : 0;
+              return `
+              <div style="margin-bottom:11px;cursor:pointer" onclick="App.go('contracts',{type:${JSON.stringify(t.contract_type)}})">
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px">
+                  <span class="fw-600">${esc(t.contract_type)}</span>
+                  <span style="color:var(--slate)">${t.cnt} <span style="color:var(--slate-l);font-size:11px">(${pct}%)</span></span>
+                </div>
+                <div style="height:5px;background:var(--surface-1);border-radius:99px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:var(--ink-soft);border-radius:99px;transition:width .5s"></div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+
       </div>
 
-      <div style="width:260px;min-width:230px;display:flex;flex-direction:column;gap:14px">
+      <!-- Right column: plan usage + quick actions -->
+      <div style="width:254px;min-width:220px;display:flex;flex-direction:column;gap:14px">
         <div class="card">
           <div class="card-hd">Plan Usage</div>
           <div class="card-body">
@@ -549,14 +662,14 @@ Pages.dashboard = async function() {
               <div style="margin-bottom:13px">
                 <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
                   <span style="color:var(--slate)">Contracts</span>
-                  <span style="font-weight:600">${sub.contracts_used} / ${sub.max_contracts}</span>
+                  <span class="fw-600">${sub.contracts_used} / ${sub.max_contracts}</span>
                 </div>
                 ${quotaBar(sub.contracts_used, sub.max_contracts)}
               </div>
               <div>
                 <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
                   <span style="color:var(--slate)">AI Calls</span>
-                  <span style="font-weight:600">${sub.ai_calls_used} / ${sub.max_ai_calls}</span>
+                  <span class="fw-600">${sub.ai_calls_used} / ${sub.max_ai_calls}</span>
                 </div>
                 ${quotaBar(sub.ai_calls_used, sub.max_ai_calls)}
               </div>` : '<p class="text-muted" style="font-size:13px">No subscription found</p>'}
@@ -565,22 +678,24 @@ Pages.dashboard = async function() {
 
         <div class="card">
           <div class="card-hd">Quick Actions</div>
-          <div style="padding:8px">
+          <div style="padding:6px">
             ${[
               { l:'Generate Contract',  r:'contracts/new',  i:'zap'    },
+              { l:'New Clause',         r:'clauses',        i:'book'   },
               { l:'New Template',       r:'templates',      i:'layout' },
               { l:'Add Counterparty',   r:'counterparties', i:'users'  },
               { l:'Invite Team Member', r:'team',           i:'users'  },
             ].map(a => `
               <div onclick="App.go('${a.r}')"
-                style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:var(--ink-muted);transition:all .15s"
+                style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:var(--ink-muted);transition:all .15s"
                 onmouseover="this.style.background='var(--surface)';this.style.color='var(--ink)'"
                 onmouseout="this.style.background='';this.style.color='var(--ink-muted)'">
-                <span style="color:var(--slate)">${icon(a.i, 15)}</span>${a.l}
+                <span style="color:var(--slate)">${icon(a.i,15)}</span>${a.l}
               </div>`).join('')}
           </div>
         </div>
       </div>
+
     </div>`);
 };
 
@@ -589,7 +704,8 @@ Pages.contracts = async function(params) {
   params = params || {};
   setTitle('Contracts'); showLoading();
   const status = params.status || '';
-  const d = await API.contracts.list({ status, page: params.page || 1 });
+  const type   = params.type   || '';
+  const d = await API.contracts.list({ status, type, page: params.page || 1 });
   hideLoading();
   if (!d.success) { setPage('<p class="text-muted">Failed to load contracts.</p>'); return; }
 
@@ -598,12 +714,15 @@ Pages.contracts = async function(params) {
 
   setPage(`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${['','draft','final'].map(s => `
-          <button class="btn btn-sm ${status===s ? 'btn-primary' : 'btn-outline'}"
+          <button class="btn btn-sm ${status===s && !type ? 'btn-primary' : 'btn-outline'}"
             onclick="App.go('contracts',{status:'${s}'})">
             ${s || 'All'}
           </button>`).join('')}
+        ${type ? `<span class="badge badge-draft" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;font-size:12px">
+            ${esc(type)} <span onclick="App.go('contracts')" style="cursor:pointer;margin-left:3px;opacity:.7">✕</span>
+          </span>` : ''}
       </div>
       <button class="btn btn-gold" onclick="App.go('contracts/new')">
         ${icon('zap',16)} Generate with AI
@@ -2009,6 +2128,22 @@ function renderShell(user) {
           ${icon('menu')}
         </button>
         <div class="topbar-title" id="page-title">Dashboard</div>
+
+        <!-- Global Search -->
+        <div style="position:relative;flex:0 1 320px;min-width:0" id="global-search-wrap">
+          <div style="display:flex;align-items:center;background:var(--surface-1);border:1.5px solid var(--slate-xl);border-radius:8px;padding:0 10px;gap:6px;transition:border-color .15s"
+            id="global-search-box">
+            <span style="color:var(--slate-l);flex-shrink:0">${icon('search',14)}</span>
+            <input id="global-search-input" type="text" placeholder="Search contracts, clauses, parties…"
+              style="border:none;background:none;outline:none;font-size:13px;width:100%;padding:6px 0;color:var(--ink)"
+              oninput="window._globalSearch(this.value)"
+              onfocus="this.closest('#global-search-box').style.borderColor='var(--ink-muted)'"
+              onblur="setTimeout(()=>{this.closest('#global-search-box').style.borderColor='var(--slate-xl)';window._closeSearch()},200)"
+              onkeydown="if(event.key==='Escape'){this.value='';window._closeSearch()}">
+          </div>
+          <div id="global-search-results" style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:300;background:var(--white);border:1.5px solid var(--slate-xl);border-radius:10px;box-shadow:var(--shadow-lg);max-height:480px;overflow-y:auto"></div>
+        </div>
+
         <div class="topbar-actions">
           <button class="btn btn-gold btn-sm" onclick="App.go('contracts/new')">
             ${icon('zap',14)} New Contract

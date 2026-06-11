@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Each migration is idempotent — safe to run multiple times.
  */
 
-define('SCHEMA_VERSION', 3); // bump this when adding new migrations
+define('SCHEMA_VERSION', 4); // bump this when adding new migrations
 
 function run_migrations(): void {
     // Ensure app_options exists first (it stores the version number)
@@ -20,7 +20,8 @@ function run_migrations(): void {
     if ($current >= SCHEMA_VERSION) return;
 
     db_transaction(function () use ($current): void {
-        if ($current < 3) migration_2(); // re-run with repair logic
+        if ($current < 3) migration_2();
+        if ($current < 4) migration_4();
         db_run(
             "INSERT INTO app_options (option_key, option_value)
              VALUES ('schema_version', ?)
@@ -114,4 +115,51 @@ function migration_2(): void {
     try { db_run("ALTER TABLE template_clauses
         ADD CONSTRAINT fk_tc_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
         ADD CONSTRAINT fk_tc_clause   FOREIGN KEY (clause_id)   REFERENCES clauses(id)   ON DELETE CASCADE"); } catch (Throwable) {}
+}
+
+// ── Migration 3 → 4: contract_type column + search indexes ──────────────────
+function migration_4(): void {
+    $cols = array_column(
+        db_rows("SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contracts'"),
+        'COLUMN_NAME'
+    );
+
+    // Add contract_type — populated from template category or questionnaire_data
+    if (!in_array('contract_type', $cols, true)) {
+        db_run("ALTER TABLE contracts ADD COLUMN contract_type VARCHAR(100) NULL
+                COMMENT 'Denormalised from template.category for fast filtering'
+                AFTER tone");
+    }
+    // Add party_1 / party_2 — denormalised from questionnaire for landlord/tenant search
+    if (!in_array('party_1', $cols, true)) {
+        db_run("ALTER TABLE contracts ADD COLUMN party_1 VARCHAR(255) NULL
+                COMMENT 'First party name (landlord, employer, etc.)' AFTER contract_type");
+    }
+    if (!in_array('party_2', $cols, true)) {
+        db_run("ALTER TABLE contracts ADD COLUMN party_2 VARCHAR(255) NULL
+                COMMENT 'Second party name (tenant, employee, etc.)' AFTER party_1");
+    }
+
+    // Full-text search index on contracts.title
+    $indexes = array_column(
+        db_rows("SELECT INDEX_NAME FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contracts'"),
+        'INDEX_NAME'
+    );
+    if (!in_array('ft_contracts_title', $indexes, true)) {
+        try { db_run("ALTER TABLE contracts ADD FULLTEXT INDEX ft_contracts_title (title)"); }
+        catch (Throwable) {}
+    }
+    // Index for type filtering
+    if (!in_array('idx_tenant_type', $indexes, true)) {
+        try { db_run("ALTER TABLE contracts ADD INDEX idx_tenant_type (tenant_id, contract_type)"); }
+        catch (Throwable) {}
+    }
+
+    // Backfill contract_type from template category for existing rows
+    db_run("UPDATE contracts c
+            JOIN templates t ON t.id = c.template_id
+            SET c.contract_type = t.category
+            WHERE c.contract_type IS NULL AND c.template_id IS NOT NULL");
 }

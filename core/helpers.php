@@ -140,18 +140,24 @@ function json_body(): array {
 // ── Rate limiting ─────────────────────────────────────────────
 
 function rate_limit(string $key, int $max, int $window): void {
-    $row = db_row("SELECT hits, window_start FROM rate_limits WHERE `key`=?", [$key]);
     $now = time();
-    if (!$row) {
-        db_insert("INSERT INTO rate_limits (`key`,hits,window_start) VALUES (?,1,?)", [$key, date('Y-m-d H:i:s', $now)]);
-        return;
+    $windowStart = date('Y-m-d H:i:s', $now);
+
+    // Atomic upsert: insert new key or increment existing within window.
+    // Uses INSERT ... ON DUPLICATE KEY to avoid a read-then-write race.
+    db_run(
+        "INSERT INTO rate_limits (`key`, hits, window_start)
+         VALUES (?, 1, ?)
+         ON DUPLICATE KEY UPDATE
+           hits         = IF(UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(window_start) > ?, 1, hits + 1),
+           window_start = IF(UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(window_start) > ?, VALUES(window_start), window_start)",
+        [$key, $windowStart, $window, $window]
+    );
+
+    $row = db_row("SELECT hits FROM rate_limits WHERE `key` = ?", [$key]);
+    if ($row && (int)$row['hits'] > $max) {
+        json_err('Too many requests. Please wait and try again.', 429);
     }
-    if ($now - strtotime($row['window_start']) > $window) {
-        db_run("UPDATE rate_limits SET hits=1, window_start=? WHERE `key`=?", [date('Y-m-d H:i:s', $now), $key]);
-        return;
-    }
-    if ((int)$row['hits'] >= $max) json_err('Too many requests. Please wait.', 429);
-    db_run("UPDATE rate_limits SET hits=hits+1 WHERE `key`=?", [$key]);
 }
 
 // ── Validation ────────────────────────────────────────────────
@@ -297,7 +303,7 @@ function pagination_meta(int $page, int $perPage, int $total): array {
 
 function enc(?string $v): ?string {
     if (!$v) return null;
-    $key = substr(hash('sha256', JWT_SECRET), 0, 32);
+    $key = substr(hash('sha256', ENCRYPT_KEY), 0, 32);
     $iv  = random_bytes(16);
     $enc = openssl_encrypt($v, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
     return base64_encode($iv . $enc);
@@ -305,7 +311,7 @@ function enc(?string $v): ?string {
 
 function dec(?string $v): string {
     if (!$v) return '';
-    $key = substr(hash('sha256', JWT_SECRET), 0, 32);
+    $key = substr(hash('sha256', ENCRYPT_KEY), 0, 32);
     $raw = base64_decode($v);
     $iv  = substr($raw, 0, 16);
     $enc = substr($raw, 16);
