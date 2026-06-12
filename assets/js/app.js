@@ -204,8 +204,8 @@ window._globalSearch = async function(q) {
       <div style="padding:6px 14px 3px;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--slate-l);background:var(--surface-1)">${title}</div>
       ${rows.map(renderRow).join('')}`;
 
-    const row = (onclick, left, right, sub='') => `
-      <div onclick="${onclick}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;cursor:pointer;transition:background .12s;border-bottom:.5px solid var(--surface-1)"
+    const row = (action, left, right, sub='') => `
+      <div onmousedown="event.preventDefault();${action}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;cursor:pointer;transition:background .12s;border-bottom:.5px solid var(--surface-1)"
         onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
         <div style="min-width:0">
           <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${left}</div>
