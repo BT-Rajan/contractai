@@ -204,9 +204,12 @@ window._globalSearch = async function(q) {
       <div style="padding:6px 14px 3px;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--slate-l);background:var(--surface-1)">${title}</div>
       ${rows.map(renderRow).join('')}`;
 
-    const row = (action, left, right, sub='') => `
-      <div onmousedown="event.preventDefault();${action}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;cursor:pointer;transition:background .12s;border-bottom:.5px solid var(--surface-1)"
-        onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+    // route/id are passed via data-* attributes — a single delegated
+    // mousedown handler on the panel reads these and navigates.
+    // This avoids any inline-handler quoting issues entirely.
+    const row = (route, id, left, right, sub='') => `
+      <div class="search-result-row" data-route="${esc(route)}" data-id="${id != null ? esc(String(id)) : ''}"
+        style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;cursor:pointer;transition:background .12s;border-bottom:.5px solid var(--surface-1)">
         <div style="min-width:0">
           <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${left}</div>
           ${sub ? `<div style="font-size:11.5px;color:var(--slate-l);margin-top:1px">${sub}</div>` : ''}
@@ -216,28 +219,28 @@ window._globalSearch = async function(q) {
 
     panel.innerHTML =
       section('Contracts', contracts, c =>
-        row(`App.go('contract',{id:${c.id}});window._closeSearch();document.getElementById('global-search-input').value=''`,
+        row('contract', c.id,
           esc(c.title),
           `<span class="badge badge-${esc(c.status)}" style="font-size:10.5px">${esc(c.status)}</span>`,
           [c.contract_type, c.party_1, c.party_2].filter(Boolean).map(esc).join(' · ')
         )
       ) +
       section('Counterparties', counterparties, c =>
-        row(`App.go('counterparties');window._closeSearch();document.getElementById('global-search-input').value=''`,
+        row('counterparties', null,
           esc(c.company_name),
           `<span style="font-size:11px;color:var(--slate)">${esc(c.country)}</span>`,
           [c.signatory_title, c.email].filter(Boolean).map(esc).join(' · ')
         )
       ) +
       section('Clauses', clauses, c =>
-        row(`App.go('clauses');window._closeSearch();document.getElementById('global-search-input').value=''`,
+        row('clauses', null,
           esc(c.title),
           `<code style="font-size:10px;background:var(--surface-1);padding:1px 6px;border-radius:4px">${esc(c.clause_uid)}</code>`,
           esc(c.category)
         )
       ) +
       section('Templates', templates, t =>
-        row(`App.go('templates');window._closeSearch();document.getElementById('global-search-input').value=''`,
+        row('templates', null,
           esc(t.name),
           `<span style="font-size:11px;color:var(--slate)">${esc(t.language).toUpperCase()}</span>`,
           esc(t.category)
@@ -246,6 +249,34 @@ window._globalSearch = async function(q) {
       `<div style="padding:8px 14px;font-size:11px;color:var(--slate-l);text-align:right">${total} result${total!==1?'s':''}</div>`;
   }, 280);
 };
+
+// Delegated handler — set up once, works for all dynamically rendered results.
+// mousedown fires before the input's blur, so navigation isn't lost.
+document.addEventListener('mousedown', function(ev) {
+  const row = ev.target.closest('.search-result-row');
+  if (!row) return;
+  ev.preventDefault();
+
+  const route = row.dataset.route;
+  const id    = row.dataset.id;
+  const params = id ? { id } : undefined;
+
+  window._closeSearch();
+  const input = document.getElementById('global-search-input');
+  if (input) input.value = '';
+
+  App.go(route, params);
+});
+
+// Hover highlight via delegation (avoids per-row inline handlers)
+document.addEventListener('mouseover', function(ev) {
+  const row = ev.target.closest('.search-result-row');
+  if (row) row.style.background = 'var(--surface)';
+});
+document.addEventListener('mouseout', function(ev) {
+  const row = ev.target.closest('.search-result-row');
+  if (row) row.style.background = '';
+});
 
 
 window._downloadPdf = async function(id, lang, btn) {
