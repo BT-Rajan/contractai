@@ -2130,7 +2130,7 @@ function renderShell(user) {
         <div class="topbar-title" id="page-title">Dashboard</div>
 
         <!-- Global Search -->
-        <div style="position:relative;flex:0 1 320px;min-width:0" id="global-search-wrap">
+        <div style="position:relative;flex:1 1 auto;min-width:120px;max-width:420px;margin:0 auto" id="global-search-wrap">
           <div style="display:flex;align-items:center;background:var(--surface-1);border:1.5px solid var(--slate-xl);border-radius:8px;padding:0 10px;gap:6px;transition:border-color .15s"
             id="global-search-box">
             <span style="color:var(--slate-l);flex-shrink:0">${icon('search',14)}</span>

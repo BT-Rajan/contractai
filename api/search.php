@@ -21,20 +21,41 @@ if (strlen($q) < 2) {
 
 $like = '%' . $q . '%';
 
+// Defensive check: if contract_type/party_1/party_2 columns are missing
+// (migration not yet run), fall back to title-only search instead of 500.
+$hasPartyCols = count(array_column(
+    db_rows("SELECT COLUMN_NAME FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contracts'
+               AND COLUMN_NAME IN ('contract_type','party_1','party_2')"),
+    'COLUMN_NAME'
+)) === 3;
+
 // ── Contracts: title, contract_type, party_1, party_2 ──────────
-$contracts = db_rows(
-    "SELECT c.id, c.title, c.status, c.contract_type, c.party_1, c.party_2,
-            c.created_at, cp.company_name AS counterparty_name
-     FROM contracts c
-     LEFT JOIN counterparties cp ON cp.id = c.counterparty_id
-     WHERE c.tenant_id = ?
-       AND (c.title          LIKE ?
-         OR c.contract_type  LIKE ?
-         OR c.party_1        LIKE ?
-         OR c.party_2        LIKE ?)
-     ORDER BY c.created_at DESC LIMIT 8",
-    [$tid, $like, $like, $like, $like]
-);
+if ($hasPartyCols) {
+    $contracts = db_rows(
+        "SELECT c.id, c.title, c.status, c.contract_type, c.party_1, c.party_2,
+                c.created_at, cp.company_name AS counterparty_name
+         FROM contracts c
+         LEFT JOIN counterparties cp ON cp.id = c.counterparty_id
+         WHERE c.tenant_id = ?
+           AND (c.title          LIKE ?
+             OR c.contract_type  LIKE ?
+             OR c.party_1        LIKE ?
+             OR c.party_2        LIKE ?)
+         ORDER BY c.created_at DESC LIMIT 8",
+        [$tid, $like, $like, $like, $like]
+    );
+} else {
+    $contracts = db_rows(
+        "SELECT c.id, c.title, c.status, NULL AS contract_type, NULL AS party_1, NULL AS party_2,
+                c.created_at, cp.company_name AS counterparty_name
+         FROM contracts c
+         LEFT JOIN counterparties cp ON cp.id = c.counterparty_id
+         WHERE c.tenant_id = ? AND c.title LIKE ?
+         ORDER BY c.created_at DESC LIMIT 8",
+        [$tid, $like]
+    );
+}
 
 // ── Counterparties: company name, email, signatory title ────────
 $counterparties = db_rows(
