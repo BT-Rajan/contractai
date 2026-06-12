@@ -175,7 +175,103 @@ function setPage(html) {
   if (el) el.innerHTML = html;
 }
 
-// ── Global Search ─────────────────────────────────────────────
+// ── Entity History Modal ─────────────────────────────────────
+// Shared across contracts, templates, clauses, counterparties, settings.
+window._showHistory = async function(entity, id, title) {
+  showModal(`History — ${esc(title)}`, `<div id="history-body"><div style="padding:30px;text-align:center;color:var(--slate-l)">Loading…</div></div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Close</button>`, true);
+
+  const d = await API.history.list(entity, id, { per_page: 30 });
+  const body = document.getElementById('history-body');
+  if (!body) return;
+
+  if (!d.success) { body.innerHTML = `<p style="color:var(--red);font-size:13px">${esc(d.message)}</p>`; return; }
+
+  const rows = d.data.data || [];
+  if (!rows.length) {
+    body.innerHTML = `<div class="empty" style="padding:30px">
+      <div class="empty-icon">🕓</div>
+      <h3>No history yet</h3>
+      <p>Changes to this ${esc(entity)} will appear here.</p>
+    </div>`;
+    return;
+  }
+
+  const ACTION_LABELS = {
+    'contract.generate':    ['Generated', 'zap',   'gold'],
+    'contract.save':        ['Edited',    'edit',  'navy'],
+    'contract.finalize':    ['Finalised', 'check', 'green'],
+    'contract.delete':      ['Deleted',   'trash', 'red'],
+    'template.create':      ['Created',   'plus',  'green'],
+    'template.update':      ['Updated',   'edit',  'navy'],
+    'template.delete':      ['Deleted',   'trash', 'red'],
+    'clause.create':         ['Created',  'plus',  'green'],
+    'clause.update':         ['Updated',  'edit',  'navy'],
+    'clause.delete':         ['Deleted',  'trash', 'red'],
+    'counterparty.create':   ['Created',  'plus',  'green'],
+    'counterparty.update':   ['Updated',  'edit',  'navy'],
+    'counterparty.delete':   ['Deleted',  'trash', 'red'],
+    'settings.save':         ['Updated',  'edit',  'navy'],
+  };
+
+  const FIELD_LABELS = {
+    title: 'Title', name: 'Name', name_ar: 'Name (Arabic)', category: 'Category',
+    language: 'Language', body_html: 'Body', body_html_ar: 'Body (Arabic)',
+    title_ar: 'Title (Arabic)', tags: 'Tags', edited_html: 'Content',
+    company_name: 'Company Name', company_name_ar: 'Company Name (Arabic)',
+    address: 'Address', signatory_title: 'Signatory Title', email: 'Email',
+    phone: 'Phone', country: 'Country', reg_number: 'Registration Number',
+    tax_number: 'Tax Number', signatory_name: 'Signatory Name',
+    ai_prompt: 'AI Instructions', timezone: 'Timezone', primary_color: 'Brand Color',
+    questionnaire_schema: 'Questionnaire Fields', clause_titles: 'Clauses',
+  };
+
+  const fmtVal = (v) => {
+    if (v === null || v === undefined || v === '') return '<span style="color:var(--slate-l)">—</span>';
+    if (Array.isArray(v)) return v.length ? esc(v.join(', ')) : '<span style="color:var(--slate-l)">none</span>';
+    if (typeof v === 'object') return `<code style="font-size:11px">${esc(JSON.stringify(v))}</code>`;
+    const s = String(v);
+    if (/<[a-z][\s\S]*>/i.test(s)) {
+      // HTML content — show stripped preview
+      const text = s.replace(/<[^>]+>/g, ' ').replace(/\s+/g,' ').trim();
+      return esc(text.length > 140 ? text.slice(0,140) + '…' : text || '(empty)');
+    }
+    return esc(s.length > 140 ? s.slice(0,140) + '…' : s);
+  };
+
+  body.innerHTML = rows.map(r => {
+    const [label, ic, color] = ACTION_LABELS[r.action] || [r.action, 'edit', 'navy'];
+    const fields = r.before || r.after
+      ? Array.from(new Set([...Object.keys(r.before||{}), ...Object.keys(r.after||{})]))
+      : [];
+
+    return `
+    <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--surface-1)">
+      <div class="stat-icon ${color}" style="width:34px;height:34px;flex-shrink:0">${icon(ic,16)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <div>
+            <span class="fw-700" style="font-size:13.5px">${esc(label)}</span>
+            <span style="font-size:12px;color:var(--slate);margin-left:6px">by ${esc(r.user_name || 'System')}</span>
+          </div>
+          <span style="font-size:11.5px;color:var(--slate-l);white-space:nowrap">${fmtDate(r.created_at)}</span>
+        </div>
+        ${fields.length ? `
+        <div style="margin-top:8px;background:var(--surface);border-radius:8px;padding:8px 12px;font-size:12px">
+          ${fields.map(f => `
+            <div style="display:grid;grid-template-columns:120px 1fr 14px 1fr;gap:8px;align-items:start;padding:3px 0">
+              <div class="fw-600" style="color:var(--slate)">${esc(FIELD_LABELS[f] || f)}</div>
+              <div style="color:var(--slate);word-break:break-word">${fmtVal(r.before ? r.before[f] : undefined)}</div>
+              <div style="color:var(--slate-l);text-align:center">→</div>
+              <div class="fw-500" style="word-break:break-word">${fmtVal(r.after ? r.after[f] : undefined)}</div>
+            </div>`).join('')}
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+};
+
+
 let _searchTimer = null;
 window._closeSearch = function() {
   const r = document.getElementById('global-search-results');
@@ -1034,6 +1130,7 @@ Pages.contractEditor = async function(params) {
         ${!isFin ? `<button class="btn btn-outline btn-sm" id="save-btn" onclick="window._saveCon(${id})">Save Draft</button>` : ''}
         <button class="btn btn-outline btn-sm" onclick="window._downloadPdf(${id},'en',this)">${icon('download',14)} PDF (EN)</button>
         ${c.language !== 'en' ? `<button class="btn btn-outline btn-sm" onclick="window._downloadPdf(${id},'ar',this)">PDF (AR)</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="window._showHistory('contract',${id},${esc(JSON.stringify(c.title))})">${icon('clock',14)} History</button>
         ${!isFin ? `<button class="btn btn-primary btn-sm" onclick="window._finCon(${id})">Finalise</button>` : ''}
       </div>
     </div>
@@ -1197,6 +1294,7 @@ Pages.clauses = async function() {
               <td>
                 <div style="display:flex;gap:2px;justify-content:flex-end">
                   <button class="btn btn-ghost btn-icon btn-sm" onclick="window._previewClause(${c.id})" title="Preview">${icon('eye',13)}</button>
+                  <button class="btn btn-ghost btn-icon btn-sm" onclick="window._showHistory('clause',${c.id},${esc(JSON.stringify(c.title))})" title="History">${icon('clock',13)}</button>
                   ${canEdit ? `
                   <button class="btn btn-ghost btn-icon btn-sm" onclick="window._openClauseForm(${c.id})" title="Edit">${icon('edit',13)}</button>
                   <button class="btn btn-ghost btn-icon btn-sm" onclick="window._deleteClause(${c.id},this)" title="Delete" style="color:var(--slate-l)">${icon('trash',13)}</button>` : ''}
@@ -1475,10 +1573,12 @@ Pages.templates = async function() {
           </div>
           <div class="tpl-card-foot">
             <button class="btn btn-gold btn-sm" onclick="App.go('contracts/new')">${icon('zap',13)} Use</button>
-            ${canEdit ? `<div style="display:flex;gap:4px">
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="window._showHistory('template',${t.id},${esc(JSON.stringify(t.name))})" title="History">${icon('clock',13)}</button>
+              ${canEdit ? `
               <button class="btn btn-outline btn-sm" onclick="window._openTplForm(${t.id})">${icon('edit',13)} Edit</button>
-              <button class="btn btn-ghost btn-icon btn-sm" onclick="window._delTpl(${t.id},this)">${icon('trash',13)}</button>
-            </div>` : ''}
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="window._delTpl(${t.id},this)">${icon('trash',13)}</button>` : ''}
+            </div>
           </div>
         </div>`).join('')}
     </div>`}`);
@@ -1792,6 +1892,7 @@ Pages.counterparties = async function(params) {
                 <td class="text-muted">${esc(cp.email||'—')}</td>
                 <td>
                   <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-icon btn-sm" onclick="window._showHistory('counterparty',${cp.id},${esc(JSON.stringify(cp.company_name))})" title="History">${icon('clock',14)}</button>
                     <button class="btn btn-ghost btn-icon btn-sm" onclick="window._openCpForm(${cp.id})" title="Edit">${icon('edit',14)}</button>
                     <button class="btn btn-danger btn-icon btn-sm" onclick="window._delCp(${cp.id},this)" title="Delete">${icon('trash',14)}</button>
                   </div>
@@ -1966,7 +2067,10 @@ Pages.settings = async function() {
     <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
 
       <div class="card" style="flex:1;min-width:280px">
-        <div class="card-hd">Workspace Settings</div>
+        <div class="card-hd">
+          Workspace Settings
+          ${(me.role==='owner'||me.role==='admin') ? `<button class="btn btn-ghost btn-icon btn-sm" onclick="window._showHistory('tenant',${tenant.id},'Workspace Settings')" title="History">${icon('clock',13)}</button>` : ''}
+        </div>
         <div class="card-body">
           <div id="ws-msg" style="margin-bottom:8px"></div>
           <div class="form-row">

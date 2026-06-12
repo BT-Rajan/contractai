@@ -119,6 +119,10 @@ function tpl_update(array $user, int $id): void {
     auth_role('owner', 'admin');
     tenant_guard(db_row("SELECT id, tenant_id FROM templates WHERE id = ? AND is_active = 1", [$id]));
 
+    $before = db_row("SELECT name, name_ar, category, language, questionnaire_schema, ai_prompt, clause_ids FROM templates WHERE id = ?", [$id]);
+    $before['clause_titles'] = array_column(tpl_load_clauses($id), 'title');
+    unset($before['clause_ids']);
+
     $b = json_body();
     $errors = validate($b, [
         'name'     => 'required|min:2|max:255',
@@ -154,7 +158,11 @@ function tpl_update(array $user, int $id): void {
     );
 
     tpl_sync_clauses($id, $clauseIds);
-    audit('template.update', 'template', $id);
+
+    $after = db_row("SELECT name, name_ar, category, language, questionnaire_schema, ai_prompt FROM templates WHERE id = ?", [$id]);
+    $after['clause_titles'] = array_column(tpl_load_clauses($id), 'title');
+
+    audit_diff('template.update', 'template', $id, $before, $after);
     api_ok(tpl_show_row($id), 'Template updated');
 }
 

@@ -195,10 +195,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
     entity_type VARCHAR(100) NULL,
     entity_id   INT UNSIGNED NULL,
     meta        TEXT NULL,
+    before_json LONGTEXT NULL COMMENT 'JSON snapshot of changed fields before the action',
+    after_json  LONGTEXT NULL COMMENT 'JSON snapshot of changed fields after the action',
     ip          VARCHAR(45) NULL,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_tenant (tenant_id),
-    INDEX idx_action (action)
+    INDEX idx_action (action),
+    INDEX idx_entity (tenant_id, entity_type, entity_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

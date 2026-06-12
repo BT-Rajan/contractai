@@ -100,6 +100,14 @@ function cp_create(array $user): void {
 function cp_update(array $user, int $id): void {
     tenant_guard(db_row("SELECT id, tenant_id FROM counterparties WHERE id = ? AND is_active = 1", [$id]));
 
+    // Decrypted snapshot before update — encrypted columns are never stored raw in history
+    $before = cp_decrypt(db_row(
+        "SELECT company_name, company_name_ar, address, signatory_title, email, phone, country,
+                reg_number_enc, tax_number_enc, signatory_name_enc
+         FROM counterparties WHERE id = ?", [$id]
+    ));
+    unset($before['reg_number_enc'], $before['tax_number_enc'], $before['signatory_name_enc']);
+
     $b = json_body();
     $errors = validate($b, [
         'company_name' => 'required|min:2|max:255',
@@ -130,7 +138,14 @@ function cp_update(array $user, int $id): void {
         ]
     );
 
-    audit('counterparty.update', 'counterparty', $id);
+    $after = cp_decrypt(db_row(
+        "SELECT company_name, company_name_ar, address, signatory_title, email, phone, country,
+                reg_number_enc, tax_number_enc, signatory_name_enc
+         FROM counterparties WHERE id = ?", [$id]
+    ));
+    unset($after['reg_number_enc'], $after['tax_number_enc'], $after['signatory_name_enc']);
+
+    audit_diff('counterparty.update', 'counterparty', $id, $before, $after);
     api_ok(cp_decrypt(db_row("SELECT * FROM counterparties WHERE id = ?", [$id])), 'Updated');
 }
 

@@ -176,6 +176,11 @@ const API = (() => {
     delete : (id)     => post(`templates.php?id=${id}`, { _method: 'DELETE' }),
   };
 
+  // ── History ───────────────────────────────────────────────────
+  const history = {
+    list: (entity, id, p = {}) => get(`history.php?` + new URLSearchParams({ entity, id, ...p })),
+  };
+
   // ── Search ────────────────────────────────────────────────────
   const search = {
     query: (q) => get('search.php?' + new URLSearchParams({ q })),
@@ -212,6 +217,6 @@ const API = (() => {
     uploadLogo   : (fd)   => post('users.php?action=upload_logo', fd),
   };
 
-  return { BASE, store, auth, contracts, templates, clauses, search, counterparties, users };
+  return { BASE, store, auth, contracts, templates, clauses, search, history, counterparties, users };
 
 })();

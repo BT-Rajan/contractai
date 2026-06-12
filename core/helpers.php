@@ -217,6 +217,53 @@ function audit(string $action, ?string $entity = null, ?int $entityId = null, ar
     } catch (Throwable) {}
 }
 
+/**
+ * Record an audit entry with a field-level before/after diff.
+ * Only fields that actually changed are stored — keeps history compact
+ * and makes the "what changed" view trivial to render.
+ *
+ * $before / $after are associative arrays of the relevant DB row
+ * (or a subset of fields). Keys present in either array are compared;
+ * unchanged values are dropped from both snapshots.
+ *
+ * Sensitive fields (passwords, tokens, *_enc) are never stored — pass
+ * already-decrypted values if needed, or omit them entirely.
+ */
+function audit_diff(string $action, string $entity, int $entityId, array $before, array $after): void {
+    $skip = ['password_hash','token','token_hash','reg_number_enc','tax_number_enc','signatory_name_enc'];
+
+    $changedBefore = [];
+    $changedAfter  = [];
+    $keys = array_unique(array_merge(array_keys($before), array_keys($after)));
+
+    foreach ($keys as $k) {
+        if (in_array($k, $skip, true)) continue;
+        $b = $before[$k] ?? null;
+        $a = $after[$k]  ?? null;
+        // Normalise for comparison (e.g. "1" vs 1, null vs "")
+        $bn = is_scalar($b) ? (string)$b : json_encode($b);
+        $an = is_scalar($a) ? (string)$a : json_encode($a);
+        if ($bn === $an) continue;
+        $changedBefore[$k] = $b;
+        $changedAfter[$k]  = $a;
+    }
+
+    if (empty($changedBefore) && empty($changedAfter)) return; // no real change — skip noise
+
+    try {
+        db_insert(
+            "INSERT INTO audit_log(tenant_id,user_id,action,entity_type,entity_id,before_json,after_json,ip)
+             VALUES(?,?,?,?,?,?,?,?)",
+            [
+                current_tenant_id(), current_user_id(), $action, $entity, $entityId,
+                json_encode($changedBefore, JSON_UNESCAPED_UNICODE),
+                json_encode($changedAfter,  JSON_UNESCAPED_UNICODE),
+                ip(),
+            ]
+        );
+    } catch (Throwable) {}
+}
+
 // ── Token / slug ──────────────────────────────────────────────
 
 function make_token(int $bytes = 32): string { return bin2hex(random_bytes($bytes)); }

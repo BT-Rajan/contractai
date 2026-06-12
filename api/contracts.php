@@ -185,6 +185,8 @@ function contract_save(array $user, int $id): void {
     $row = tenant_guard(db_row("SELECT * FROM contracts WHERE id = ?", [$id]));
     if ($row['status'] === 'final') api_error('Cannot edit a finalised contract', 403);
 
+    $before = ['title' => $row['title'], 'edited_html' => $row['edited_html'] ?? $row['generated_html']];
+
     $b     = json_body();
     $html  = sanitize_html(trim($b['html'] ?? $b['edited_html'] ?? ''));
     $title = trim($b['title'] ?? '') ?: $row['title'];
@@ -194,7 +196,8 @@ function contract_save(array $user, int $id): void {
         [$html, $title, $id, $user['tenant_id']]
     );
 
-    audit('contract.save', 'contract', $id);
+    $after = ['title' => $title, 'edited_html' => $html];
+    audit_diff('contract.save', 'contract', $id, $before, $after);
     api_ok(['id' => $id, 'title' => $title], 'Saved');
 }
 

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Each migration is idempotent — safe to run multiple times.
  */
 
-define('SCHEMA_VERSION', 4); // bump this when adding new migrations
+define('SCHEMA_VERSION', 5); // bump this when adding new migrations
 
 function run_migrations(): void {
     // Ensure app_options exists first (it stores the version number)
@@ -22,6 +22,7 @@ function run_migrations(): void {
     db_transaction(function () use ($current): void {
         if ($current < 3) migration_2();
         if ($current < 4) migration_4();
+        if ($current < 5) migration_5();
         db_run(
             "INSERT INTO app_options (option_key, option_value)
              VALUES ('schema_version', ?)
@@ -162,4 +163,34 @@ function migration_4(): void {
             JOIN templates t ON t.id = c.template_id
             SET c.contract_type = t.category
             WHERE c.contract_type IS NULL AND c.template_id IS NOT NULL");
+}
+
+// ── Migration 4 → 5: audit_log diff columns for entity history ──────────────
+function migration_5(): void {
+    $cols = array_column(
+        db_rows("SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log'"),
+        'COLUMN_NAME'
+    );
+
+    // before_json / after_json: full or partial snapshots for diffing in History UI
+    if (!in_array('before_json', $cols, true)) {
+        db_run("ALTER TABLE audit_log ADD COLUMN before_json LONGTEXT NULL
+                COMMENT 'JSON snapshot of changed fields before the action' AFTER meta");
+    }
+    if (!in_array('after_json', $cols, true)) {
+        db_run("ALTER TABLE audit_log ADD COLUMN after_json LONGTEXT NULL
+                COMMENT 'JSON snapshot of changed fields after the action' AFTER before_json");
+    }
+
+    // Composite index for fast per-entity history lookups
+    $indexes = array_column(
+        db_rows("SELECT INDEX_NAME FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log'"),
+        'INDEX_NAME'
+    );
+    if (!in_array('idx_entity', $indexes, true)) {
+        try { db_run("ALTER TABLE audit_log ADD INDEX idx_entity (tenant_id, entity_type, entity_id, created_at)"); }
+        catch (Throwable) {}
+    }
 }

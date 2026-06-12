@@ -262,6 +262,9 @@ function action_settings_get(array $user): void {
 // ── SETTINGS SAVE ─────────────────────────────────────────────
 function action_settings_save(array $user): void {
     auth_role('owner', 'admin');
+
+    $before = db_row("SELECT name, language, timezone, primary_color, ai_prompt FROM tenants WHERE id = ?", [$user['tenant_id']]);
+
     $b = json_body();
     $errors = validate($b, [
         'name'     => 'required|min:2|max:255',
@@ -280,7 +283,9 @@ function action_settings_save(array $user): void {
             $user['tenant_id'],
         ]
     );
-    audit('settings.save', 'tenant', $user['tenant_id']);
+
+    $after = db_row("SELECT name, language, timezone, primary_color, ai_prompt FROM tenants WHERE id = ?", [$user['tenant_id']]);
+    audit_diff('settings.save', 'tenant', $user['tenant_id'], $before, $after);
     api_ok(null, 'Settings saved');
 }
 

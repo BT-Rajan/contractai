@@ -123,6 +123,8 @@ function clause_update(array $user, int $id): void {
     auth_role('owner', 'admin');
     tenant_guard(db_row("SELECT id, tenant_id FROM clauses WHERE id = ? AND is_active = 1", [$id]));
 
+    $before = db_row("SELECT title, title_ar, category, body_html, body_html_ar, tags FROM clauses WHERE id = ?", [$id]);
+
     $b = json_body();
     $errors = validate($b, [
         'title'     => 'required|min:2|max:500',
@@ -148,7 +150,8 @@ function clause_update(array $user, int $id): void {
         ]
     );
 
-    audit('clause.update', 'clause', $id);
+    $after = db_row("SELECT title, title_ar, category, body_html, body_html_ar, tags FROM clauses WHERE id = ?", [$id]);
+    audit_diff('clause.update', 'clause', $id, $before, $after);
     api_ok(db_row("SELECT * FROM clauses WHERE id = ?", [$id]), 'Clause updated');
 }
 
