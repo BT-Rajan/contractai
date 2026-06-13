@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     status         ENUM('active','trialing','past_due','canceled','paused') DEFAULT 'trialing',
     contracts_used SMALLINT UNSIGNED DEFAULT 0,
     ai_calls_used  SMALLINT UNSIGNED DEFAULT 0,
+    max_contracts_bonus SMALLINT UNSIGNED DEFAULT 0 COMMENT 'Extra contract quota purchased via recharge',
+    max_ai_calls_bonus  SMALLINT UNSIGNED DEFAULT 0 COMMENT 'Extra AI call quota purchased via recharge',
     trial_ends_at  DATETIME NULL,
     period_start   DATETIME NULL,
     period_end     DATETIME NULL,
@@ -256,3 +258,25 @@ CREATE TABLE IF NOT EXISTS template_clauses (
 
 -- Migration: add clause_ids column to templates for ordered clause list
 ALTER TABLE templates ADD COLUMN IF NOT EXISTS clause_ids TEXT NULL COMMENT 'JSON array of ordered clause IDs';
+
+-- ── Payments (Razorpay recharge) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS payments (
+    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tenant_id          INT UNSIGNED NOT NULL,
+    user_id            INT UNSIGNED NOT NULL,
+    package_key        VARCHAR(50)  NOT NULL,
+    razorpay_order_id  VARCHAR(64)  NOT NULL,
+    razorpay_payment_id VARCHAR(64) NULL,
+    razorpay_signature VARCHAR(128) NULL,
+    amount             INT UNSIGNED NOT NULL COMMENT 'In smallest currency unit (e.g. paise)',
+    currency           VARCHAR(10)  NOT NULL DEFAULT 'INR',
+    status             ENUM('created','paid','failed') DEFAULT 'created',
+    add_contracts      SMALLINT UNSIGNED DEFAULT 0,
+    add_ai_calls       SMALLINT UNSIGNED DEFAULT 0,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_order (razorpay_order_id),
+    INDEX idx_tenant (tenant_id),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)   REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -42,6 +42,11 @@ if (ENCRYPT_KEY === JWT_SECRET && APP_ENV === 'production') {
     error_log('[ContractAI] WARNING: ENCRYPT_KEY not set. Add a separate ENCRYPT_KEY to .env');
 }
 
+// ── Razorpay (recharge / payments) ─────────────────────────────
+define('RAZORPAY_KEY_ID',     $_ENV['RAZORPAY_KEY_ID']     ?? '');
+define('RAZORPAY_KEY_SECRET', $_ENV['RAZORPAY_KEY_SECRET'] ?? '');
+define('RAZORPAY_CURRENCY',   $_ENV['RAZORPAY_CURRENCY']   ?? 'INR');
+
 define('GEMINI_API_KEY', $_ENV['GEMINI_API_KEY'] ?? '');
 define('GEMINI_MODEL',   $_ENV['GEMINI_MODEL']   ?? 'gemini-2.0-flash');
 

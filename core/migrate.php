@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Each migration is idempotent — safe to run multiple times.
  */
 
-define('SCHEMA_VERSION', 5); // bump this when adding new migrations
+define('SCHEMA_VERSION', 6); // bump this when adding new migrations
 
 function run_migrations(): void {
     // Ensure app_options exists first (it stores the version number)
@@ -23,6 +23,7 @@ function run_migrations(): void {
         if ($current < 3) migration_2();
         if ($current < 4) migration_4();
         if ($current < 5) migration_5();
+        if ($current < 6) migration_6();
         db_run(
             "INSERT INTO app_options (option_key, option_value)
              VALUES ('schema_version', ?)
@@ -192,5 +193,46 @@ function migration_5(): void {
     if (!in_array('idx_entity', $indexes, true)) {
         try { db_run("ALTER TABLE audit_log ADD INDEX idx_entity (tenant_id, entity_type, entity_id, created_at)"); }
         catch (Throwable) {}
+    }
+}
+
+// ── Migration 5 → 6: payments table + subscription bonus quota columns ──────
+function migration_6(): void {
+    db_run("CREATE TABLE IF NOT EXISTS payments (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        tenant_id          INT UNSIGNED NOT NULL,
+        user_id            INT UNSIGNED NOT NULL,
+        package_key        VARCHAR(50)  NOT NULL,
+        razorpay_order_id  VARCHAR(64)  NOT NULL,
+        razorpay_payment_id VARCHAR(64) NULL,
+        razorpay_signature VARCHAR(128) NULL,
+        amount             INT UNSIGNED NOT NULL COMMENT 'In smallest currency unit (e.g. paise)',
+        currency           VARCHAR(10)  NOT NULL DEFAULT 'INR',
+        status             ENUM('created','paid','failed') DEFAULT 'created',
+        add_contracts      SMALLINT UNSIGNED DEFAULT 0,
+        add_ai_calls       SMALLINT UNSIGNED DEFAULT 0,
+        created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_order (razorpay_order_id),
+        INDEX idx_tenant (tenant_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    try { db_run("ALTER TABLE payments
+        ADD CONSTRAINT fk_payments_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        ADD CONSTRAINT fk_payments_user   FOREIGN KEY (user_id)   REFERENCES users(id)"); } catch (Throwable) {}
+
+    // Bonus quota columns — credited via recharge, added on top of plan limits
+    $subCols = array_column(
+        db_rows("SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'subscriptions'"),
+        'COLUMN_NAME'
+    );
+    if (!in_array('max_contracts_bonus', $subCols, true)) {
+        db_run("ALTER TABLE subscriptions ADD COLUMN max_contracts_bonus SMALLINT UNSIGNED DEFAULT 0
+                COMMENT 'Extra contract quota purchased via recharge' AFTER ai_calls_used");
+    }
+    if (!in_array('max_ai_calls_bonus', $subCols, true)) {
+        db_run("ALTER TABLE subscriptions ADD COLUMN max_ai_calls_bonus SMALLINT UNSIGNED DEFAULT 0
+                COMMENT 'Extra AI call quota purchased via recharge' AFTER max_contracts_bonus");
     }
 }

@@ -367,7 +367,9 @@ function dec(?string $v): string {
 
 function quota_check(int $tenantId, string $type): bool {
     $sub = db_row(
-        "SELECT s.contracts_used,s.ai_calls_used,p.max_contracts,p.max_ai_calls
+        "SELECT s.contracts_used, s.ai_calls_used,
+                p.max_contracts + COALESCE(s.max_contracts_bonus,0) AS max_contracts,
+                p.max_ai_calls  + COALESCE(s.max_ai_calls_bonus,0)  AS max_ai_calls
          FROM subscriptions s JOIN plans p ON p.id=s.plan_id
          WHERE s.tenant_id=? AND s.status IN('active','trialing') ORDER BY s.id DESC LIMIT 1",
         [$tenantId]

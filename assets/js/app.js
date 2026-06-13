@@ -175,6 +175,155 @@ function setPage(html) {
   if (el) el.innerHTML = html;
 }
 
+// ── Recharge / Razorpay Payments ────────────────────────────────
+let _razorpayScriptLoaded = false;
+function loadRazorpayScript() {
+  return new Promise((resolve, reject) => {
+    if (_razorpayScriptLoaded || window.Razorpay) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload  = () => { _razorpayScriptLoaded = true; resolve(); };
+    s.onerror = () => reject(new Error('Failed to load Razorpay checkout script'));
+    document.head.appendChild(s);
+  });
+}
+
+window._openRecharge = async function() {
+  showModal('Recharge Plan', `<div id="recharge-body"><div style="padding:30px;text-align:center;color:var(--slate-l)">Loading packages…</div></div>`,
+    `<button class="btn btn-outline" onclick="closeModal()">Close</button>`);
+
+  const d = await API.payments.config();
+  const body = document.getElementById('recharge-body');
+  if (!body) return;
+
+  if (!d.success) { body.innerHTML = `<p style="color:var(--red);font-size:13px">${esc(d.message)}</p>`; return; }
+
+  if (!d.data.enabled) {
+    body.innerHTML = `<div class="empty" style="padding:20px">
+      <div class="empty-icon">${icon('lock',32)}</div>
+      <h3>Payments not configured</h3>
+      <p>The administrator needs to add Razorpay API keys (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) to the server's .env file to enable recharges.</p>
+    </div>`;
+    return;
+  }
+
+  const packages = d.data.packages;
+  body.innerHTML = `
+    <p style="font-size:13px;color:var(--slate);margin-bottom:14px">
+      Choose a top-up package. Quota is added instantly after a successful payment.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${Object.values(packages).map(p => `
+        <label class="recharge-pkg" data-key="${esc(p.key)}"
+          style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:2px solid var(--slate-xl);border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .15s">
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="radio" name="recharge-pkg" value="${esc(p.key)}" class="clause-pick-cb" style="accent-color:var(--accent)">
+            <div>
+              <div class="fw-700" style="font-size:13.5px">${esc(p.label)}</div>
+              <div style="font-size:12px;color:var(--slate);margin-top:2px">${esc(p.description)}</div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div class="fw-700" style="font-size:15px">₹${esc(p.amount_display)}</div>
+            <div style="font-size:10.5px;color:var(--slate-l)">${esc(p.currency)}</div>
+          </div>
+        </label>`).join('')}
+    </div>
+    <div class="form-error" id="recharge-err" style="display:none;margin-top:10px"></div>
+    <button class="btn btn-gold w-100 mt-3" id="recharge-pay-btn" disabled onclick="window._startPayment()">
+      ${icon('zap',14)} Proceed to Pay
+    </button>`;
+
+  // Selection highlighting
+  document.querySelectorAll('.recharge-pkg').forEach(label => {
+    label.addEventListener('click', () => {
+      document.querySelectorAll('.recharge-pkg').forEach(l => {
+        l.style.borderColor = 'var(--slate-xl)';
+        l.style.background  = '';
+      });
+      label.style.borderColor = 'var(--accent)';
+      label.style.background  = 'rgba(201,168,76,.05)';
+      label.querySelector('input').checked = true;
+      document.getElementById('recharge-pay-btn').disabled = false;
+    });
+  });
+
+  window._rechargeConfig = d.data;
+};
+
+window._startPayment = async function() {
+  const selected = document.querySelector('input[name="recharge-pkg"]:checked');
+  const errEl    = document.getElementById('recharge-err');
+  const btn      = document.getElementById('recharge-pay-btn');
+  errEl.style.display = 'none';
+
+  if (!selected) return;
+  const pkgKey = selected.value;
+
+  btn.disabled = true;
+  btn.textContent = 'Preparing…';
+
+  try {
+    await loadRazorpayScript();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.innerHTML = `${icon('zap',14)} Proceed to Pay`;
+    return;
+  }
+
+  const order = await API.payments.createOrder(pkgKey);
+  if (!order.success) {
+    errEl.textContent = order.message || 'Could not create order';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.innerHTML = `${icon('zap',14)} Proceed to Pay`;
+    return;
+  }
+
+  const cfg = window._rechargeConfig;
+  const pkg = cfg.packages[pkgKey];
+
+  const rzp = new Razorpay({
+    key:      order.data.key_id,
+    amount:   order.data.amount,
+    currency: order.data.currency,
+    name:     cfg.company || 'ContractAI',
+    description: pkg.label,
+    order_id: order.data.order_id,
+    prefill:  cfg.prefill || {},
+    theme:    { color: '#c9a84c' },
+    handler: async function(response) {
+      btn.textContent = 'Verifying…';
+      const v = await API.payments.verify({
+        razorpay_order_id:   response.razorpay_order_id,
+        razorpay_payment_id: response.razorpay_payment_id,
+        razorpay_signature:  response.razorpay_signature,
+      });
+      if (v.success) {
+        toast('Payment successful — quota updated', 'success');
+        closeModal();
+        if (typeof Pages !== 'undefined' && Pages.dashboard) Pages.dashboard();
+      } else {
+        toast(v.message || 'Payment verification failed', 'error');
+        btn.disabled = false; btn.innerHTML = `${icon('zap',14)} Proceed to Pay`;
+      }
+    },
+    modal: {
+      ondismiss: function() {
+        btn.disabled = false;
+        btn.innerHTML = `${icon('zap',14)} Proceed to Pay`;
+      },
+    },
+  });
+
+  rzp.on('payment.failed', function(resp) {
+    toast('Payment failed: ' + (resp.error?.description || 'Unknown error'), 'error');
+    btn.disabled = false; btn.innerHTML = `${icon('zap',14)} Proceed to Pay`;
+  });
+
+  rzp.open();
+};
+
 // ── Entity History Modal ─────────────────────────────────────
 // Shared across contracts, templates, clauses, counterparties, settings.
 window._showHistory = async function(entity, id, title) {
@@ -792,14 +941,19 @@ Pages.dashboard = async function() {
                   <span class="fw-600">${sub.contracts_used} / ${sub.max_contracts}</span>
                 </div>
                 ${quotaBar(sub.contracts_used, sub.max_contracts)}
+                ${sub.max_contracts_bonus > 0 ? `<div style="font-size:10.5px;color:var(--green);margin-top:3px">+${sub.max_contracts_bonus} from recharge</div>` : ''}
               </div>
-              <div>
+              <div style="margin-bottom:14px">
                 <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
                   <span style="color:var(--slate)">AI Calls</span>
                   <span class="fw-600">${sub.ai_calls_used} / ${sub.max_ai_calls}</span>
                 </div>
                 ${quotaBar(sub.ai_calls_used, sub.max_ai_calls)}
-              </div>` : '<p class="text-muted" style="font-size:13px">No subscription found</p>'}
+                ${sub.max_ai_calls_bonus > 0 ? `<div style="font-size:10.5px;color:var(--green);margin-top:3px">+${sub.max_ai_calls_bonus} from recharge</div>` : ''}
+              </div>
+              <button class="btn btn-gold w-100" onclick="window._openRecharge()">
+                ${icon('zap',14)} Recharge
+              </button>` : '<p class="text-muted" style="font-size:13px">No subscription found</p>'}
           </div>
         </div>
 

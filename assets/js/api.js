@@ -176,6 +176,13 @@ const API = (() => {
     delete : (id)     => post(`templates.php?id=${id}`, { _method: 'DELETE' }),
   };
 
+  // ── Payments ──────────────────────────────────────────────────
+  const payments = {
+    config:      ()        => get('payments.php?action=config'),
+    createOrder: (pkg)     => post('payments.php?action=create_order', { package: pkg }),
+    verify:      (data)    => post('payments.php?action=verify', data),
+  };
+
   // ── History ───────────────────────────────────────────────────
   const history = {
     list: (entity, id, p = {}) => get(`history.php?` + new URLSearchParams({ entity, id, ...p })),
@@ -217,6 +224,6 @@ const API = (() => {
     uploadLogo   : (fd)   => post('users.php?action=upload_logo', fd),
   };
 
-  return { BASE, store, auth, contracts, templates, clauses, search, history, counterparties, users };
+  return { BASE, store, auth, contracts, templates, clauses, search, history, payments, counterparties, users };
 
 })();

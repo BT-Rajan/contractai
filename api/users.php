@@ -64,7 +64,11 @@ function action_dashboard(array $user): void {
     $stats['by_type'] = $byType;
 
     $sub = db_row(
-        "SELECT s.*, p.name AS plan_name, p.max_contracts, p.max_ai_calls, p.max_users
+        "SELECT s.*, p.name AS plan_name, p.max_users,
+                p.max_contracts + COALESCE(s.max_contracts_bonus,0) AS max_contracts,
+                p.max_ai_calls  + COALESCE(s.max_ai_calls_bonus,0)  AS max_ai_calls,
+                COALESCE(s.max_contracts_bonus,0) AS max_contracts_bonus,
+                COALESCE(s.max_ai_calls_bonus,0)  AS max_ai_calls_bonus
          FROM subscriptions s JOIN plans p ON p.id = s.plan_id
          WHERE s.tenant_id = ? ORDER BY s.id DESC LIMIT 1",
         [$tid]
